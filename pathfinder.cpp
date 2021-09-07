@@ -61,7 +61,12 @@ float cost_asymmetric (const float _zthis, const float _zneib, const float _xydi
 
 Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> generate_distance_field (
     Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>& elev,
+    Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>& hard,
+    Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>& easy,
     const size_t sx, const size_t sy) {
+
+  const bool use_hard = (hard.rows() == elev.rows() and hard.cols() == elev.cols());
+  const bool use_easy = (easy.rows() == elev.rows() and easy.cols() == elev.cols());
 
   const size_t nx = elev.rows();
   const size_t ny = elev.cols();
@@ -137,10 +142,16 @@ Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> generate_distance_field (
         //std::cerr << "  testing cell " << i << " " << j << std::endl;
 
         // compute distance (cost) from current to target
-        //const float dist = cost_uniform(thiselev, elev(i,j), euclid(current.i-i+1, current.j-j+1));
-        const float dist = cost_symmetric(thiselev, elev(i,j), euclid(current.i-i+1, current.j-j+1));
-        //const float dist = cost_asymmetric(thiselev, elev(i,j), euclid(current.i-i+1, current.j-j+1));
+        //float dist = cost_uniform(thiselev, elev(i,j), euclid(current.i-i+1, current.j-j+1));
+        float dist = cost_symmetric(thiselev, elev(i,j), euclid(current.i-i+1, current.j-j+1));
+        //float dist = cost_asymmetric(thiselev, elev(i,j), euclid(current.i-i+1, current.j-j+1));
         //std::cerr << "    unvisited, distance is " << euclid(current.i-i+1, current.j-j+1) << " " << dist << std::endl;
+
+        // add a cost if hard(i,j) > 0.0 (like open water, a river, woods, etc.)
+        if (use_hard) { dist += hard(i,j); }
+
+        // subtract cost if easy(i,j) and easy(current.i, current.j) are > 0.0
+        if (use_easy) {}
 
         // reset distance on target
         const float testdist = distance(current.i, current.j) + dist;
@@ -300,11 +311,33 @@ int main(int argc, char const *argv[]) {
 
   // another matrix which would increase the cost of traversal
   // this could be used for rivers, woods, etc.
-  //Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> extracost;
+  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> hard;
+
+  if (not hardfile.empty()) {
+    // read a png to get the elevation
+    // check the resolution first
+    int hgt, wdt;
+    (void) read_png_res (hardfile.c_str(), &hgt, &wdt);
+    if (wdt != nx) exit(1);
+    if (hgt != ny) exit(1);
+
+    // allocate the space
+    hard.resize(nx,ny);
+    float** data = allocate_2d_array_f((int)nx, (int)ny);
+
+    // read the first channel into the elevation array, scaled as 0..vscale
+    (void) read_png (hardfile.c_str(), (int)nx, (int)ny, 0, 0, 0.0, 0,
+                     data, 0.0, 1.0, nullptr, 0.0, 1.0, nullptr, 0.0, 1.0);
+
+    for (size_t i=0; i<nx; ++i) for (size_t j=0; j<ny; ++j) hard(i,j) = data[i][j];
+
+    free_2d_array_f(data);
+  }
+
 
   // finally, a matrix for existing paths and their weights
   // this would be used to prefer existing paths when pathfinding
-  //Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> paths;
+  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> easy;
 
 
   // set sample start point
@@ -313,7 +346,7 @@ int main(int argc, char const *argv[]) {
 
 
   // one function to generate distances to a given point/cell
-  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> distance = generate_distance_field(elev, xs, ys);
+  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> distance = generate_distance_field(elev, hard, easy, xs, ys);
 
   // write out corners of matrix
   //std::cerr << std::endl;
@@ -342,7 +375,7 @@ int main(int argc, char const *argv[]) {
   // set sample end points
   if (finishp[0] == -1 and finishp[1] == -1) {
     xf = nx-1;
-    yf = ny-1;
+    yf = 0;
   } else {
     xf = finishp[0];
     yf = ny - finishp[1] - 1;

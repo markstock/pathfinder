@@ -8,8 +8,11 @@ Compile and run with:
     ./pathfinder -h
     ./pathfinder -d SwitzerlandBerneseOberland.png -v 0.18
     ./pathfinder -d SpainOneArcsecond.png -v 0.1 -s 0 1500 -f 2999 1500
+    ./pathfinder -d ScotlandSkye.png -v 0.018 -s 1875 2868 -f 558 1578 --hard ScotlandSkyeImpassable.png
 
-The first argument is the DEM (digital elevation model) and the second sets the slopes - it is the vertical distance between pure black and white divided by the horizontal (left-to-right) length of the represented area. For example, if your png were 1000 by 500 pixels and each pixel is 100 meters, then the width of your image is 100,000 meters. If black is -100m and white is 4900m, then the vertical range is 5000 meters. The coefficient for this case would be 0.05.
+Use `-d` to set the DEM (digital elevation model) and `-v` to set the slopes - the vertical distance between pure black and white divided by the horizontal (left-to-right) length of the represented area. For example, if your png were 1000 by 500 pixels and each pixel is 100 meters, then the width of your image is 100,000 meters. If black is -100m and white is 4900m, then the vertical range is 5000 meters. The coefficient for this case would be 0.05.
+
+`-s` and `-f` set start and finish points, measured from top left (x then y). Finally, to include a map of impassable (or extra-difficult) terrain or water, use `-hard`.
 
 ## Goal
 In order to create an organic civilization/city simulation engine which starts from the beginnings of habitation, we need a tool to find paths between two points on a scalar, raster field of passability. The first step being to simulate paths taken through a given area: from one boundary cell to another. When settlers arrive, paths between their camps and those boundary connections are then calculated. And when there are multiple settlers, paths between camps as well.
