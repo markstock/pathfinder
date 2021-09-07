@@ -337,8 +337,15 @@ int main(int argc, char const *argv[]) {
     float** data = allocate_2d_array_f((int)nx, (int)ny);
     for (size_t i=0; i<nx; ++i) for (size_t j=0; j<ny; ++j) data[i][j] = elev(i,j);
 
-    // make the line darker
-    for (size_t i=0; i<nx; ++i) for (size_t j=0; j<ny; ++j) data[i][j] -= 100.0*pathimg(i,j);
+    // make the line darker or lighter (to see it)
+    const float factor = 1.0/(vscale*(float)nx);
+    for (size_t i=0; i<nx; ++i) for (size_t j=0; j<ny; ++j) {
+      if (data[i][j]*factor < 0.5) {
+        data[i][j] += 0.5*pathimg(i,j)/factor;
+      } else {
+        data[i][j] -= 0.5*pathimg(i,j)/factor;
+      }
+    }
 
     (void) write_png (outroot.c_str(), (int)nx, (int)ny, FALSE, TRUE,
                       data, 0.0, vscale*(float)nx, nullptr, 0.0, 1.0, nullptr, 0.0, 1.0);
