@@ -5,7 +5,9 @@ C++ program to find optimal paths through heightfields
 Compile and run with:
 
     make
-    ./pathfinder
+    ./pathfinder SwitzerlandBerneseOberland.png 0.1794
+
+The first argument is the DEM (digital elevation model) and the second sets the slopes - it is the vertical distance between pure black and white divided by the horizontal (left-to-right) length of the represented area. For example, if your png were 1000 by 500 pixels and each pixel is 100 meters, then the width of your image is 100,000 meters. If black is -100m and white is 4900m, then the vertical range is 5000 meters. The coefficient for this case would be 0.05.
 
 ## Goal
 In order to create an organic civilization/city simulation engine which starts from the beginnings of habitation, we need a tool to find paths between two points on a scalar, raster field of passability. The first step being to simulate paths taken through a given area: from one boundary cell to another. When settlers arrive, paths between their camps and those boundary connections are then calculated. And when there are multiple settlers, paths between camps as well.
