@@ -5,7 +5,9 @@ C++ program to find optimal paths through heightfields
 Compile and run with:
 
     make
-    ./pathfinder SwitzerlandBerneseOberland.png 0.1794
+    ./pathfinder -h
+    ./pathfinder -d SwitzerlandBerneseOberland.png -v 0.18
+    ./pathfinder -d SpainOneArcsecond.png -v 0.1 -s 0 1500 -f 2999 1500
 
 The first argument is the DEM (digital elevation model) and the second sets the slopes - it is the vertical distance between pure black and white divided by the horizontal (left-to-right) length of the represented area. For example, if your png were 1000 by 500 pixels and each pixel is 100 meters, then the width of your image is 100,000 meters. If black is -100m and white is 4900m, then the vertical range is 5000 meters. The coefficient for this case would be 0.05.
 

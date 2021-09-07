@@ -5,6 +5,7 @@
 //
 
 #include "inout.h"
+#include "CLI11.hpp"
 
 #include <Eigen/Core>
 
@@ -106,7 +107,7 @@ Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> generate_distance_field (
   while (active.size() > 0) {
     //std::cerr << "active queue has " << active.size() << " elements" << std::endl;
 
-    // completion test
+    // completion test (needed only if we want to stop when a target cell is reached)
     //if (not unvisited(nx-1, ny-1)) break;
 
     // remove the member with the lowest distance (copy the full data, NOT a reference!)
@@ -217,16 +218,36 @@ int main(int argc, char const *argv[]) {
 
   std::cerr << std::endl << "pathfinder" << std::endl << std::endl;
 
+  // process command line args
+  CLI::App app{"Find optimal paths in DEMs with modifier fields"};
+
   // load a dem from a png file - check command line for file name
-  std::string infile;
+  std::string demfile;
+  app.add_option("-d,--dem", demfile, "digital elevation model as png");
+
+  // the vertical scale of black-to-white, scaled by the x size of the terrain
   float vscale = 1.0;
-  if (argc == 3) {
-    infile = argv[1];
-    vscale = std::atof(argv[2]);
-  } else {
-    std::cerr << std::endl << "Usage:" << std::endl;
-    std::cerr << "  " << argv[0] << " dem.png relhgt" << std::endl << std::endl;
-    return -1;
+  app.add_option("-v,--vert", vscale, "vertical scale of dem w.r.t. horizontal scale");
+
+  // optional png images for hard or easy cells/traversals
+  std::string hardfile;
+  app.add_option("--hard", hardfile, "png with white areas harder to access");
+  std::string easyfile;
+  app.add_option("-e,--easy", easyfile, "png with white areas easier to access");
+
+  // start point
+  std::array<int32_t,2> startp{0,0};
+  app.add_option("-s,--start", startp, "start pixel, from top left");
+
+  // end point (optional)
+  std::array<int32_t,2> finishp{-1,-1};
+  app.add_option("-f,--finish", finishp, "finish pixel, from top left");
+
+  // finally parse
+  try {
+    app.parse(argc, argv);
+  } catch (const CLI::ParseError &e) {
+    return app.exit(e);
   }
 
   // input data
@@ -242,7 +263,7 @@ int main(int argc, char const *argv[]) {
   // array of the ground elevations (DTM)
   Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> elev;
 
-  if (false) {
+  if (demfile.empty()) {
     // simply random
     elev.resize(nx,ny);
     elev.setRandom(nx,ny);	// sets to [-1..1]
@@ -252,7 +273,7 @@ int main(int argc, char const *argv[]) {
     // read a png to get the elevation
     // check the resolution first
     int hgt, wdt;
-    (void) read_png_res (infile.c_str(), &hgt, &wdt);
+    (void) read_png_res (demfile.c_str(), &hgt, &wdt);
     if (wdt > 0) nx = wdt;
     if (hgt > 0) ny = hgt;
 
@@ -261,7 +282,7 @@ int main(int argc, char const *argv[]) {
     float** data = allocate_2d_array_f((int)nx, (int)ny);
 
     // read the first channel into the elevation array, scaled as 0..vscale
-    (void) read_png (infile.c_str(), (int)nx, (int)ny, 0, 0, 0.0, 0,
+    (void) read_png (demfile.c_str(), (int)nx, (int)ny, 0, 0, 0.0, 0,
                      data, 0.0, vscale*(float)nx, nullptr, 0.0, 1.0, nullptr, 0.0, 1.0);
 
     for (size_t i=0; i<nx; ++i) for (size_t j=0; j<ny; ++j) elev(i,j) = data[i][j];
@@ -270,11 +291,11 @@ int main(int argc, char const *argv[]) {
   }
 
   // write out corners of matrix
-  std::cerr << "Top left corner of elevation matrix:" << std::endl;
-  std::cerr << elev.block(0,0,6,6) << std::endl;
-  std::cerr << std::endl;
-  std::cerr << "Bottom right corner of elevation matrix:" << std::endl;
-  std::cerr << elev.block(nx-6,ny-6,6,6) << std::endl;
+  //std::cerr << "Top left corner of elevation matrix:" << std::endl;
+  //std::cerr << elev.block(0,0,6,6) << std::endl;
+  //std::cerr << std::endl;
+  //std::cerr << "Bottom right corner of elevation matrix:" << std::endl;
+  //std::cerr << elev.block(nx-6,ny-6,6,6) << std::endl;
 
 
   // another matrix which would increase the cost of traversal
@@ -286,22 +307,21 @@ int main(int argc, char const *argv[]) {
   //Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> paths;
 
 
-  xs = nx/5;
-  ys = ny/5;
-  xf = (4*nx)/5;
-  yf = (4*ny)/5;
+  // set sample start point
+  xs = startp[0];
+  ys = ny - startp[1] - 1;
 
 
   // one function to generate distances to a given point/cell
   Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> distance = generate_distance_field(elev, xs, ys);
 
   // write out corners of matrix
-  std::cerr << std::endl;
-  std::cerr << "Top left corner of distance matrix:" << std::endl;
-  std::cerr << distance.block(0,0,6,6) << std::endl;
-  std::cerr << std::endl;
-  std::cerr << "Bottom right corner of distance matrix:" << std::endl;
-  std::cerr << distance.block(nx-6,ny-6,6,6) << std::endl;
+  //std::cerr << std::endl;
+  //std::cerr << "Top left corner of distance matrix:" << std::endl;
+  //std::cerr << distance.block(0,0,6,6) << std::endl;
+  //std::cerr << std::endl;
+  //std::cerr << "Bottom right corner of distance matrix:" << std::endl;
+  //std::cerr << distance.block(nx-6,ny-6,6,6) << std::endl;
 
   // write out the distance matrix as a png
   if (true) {
@@ -316,6 +336,16 @@ int main(int argc, char const *argv[]) {
                       data, 0.0, scale, nullptr, 0.0, 1.0, nullptr, 0.0, 1.0);
 
     free_2d_array_f(data);
+  }
+
+
+  // set sample end points
+  if (finishp[0] == -1 and finishp[1] == -1) {
+    xf = nx-1;
+    yf = ny-1;
+  } else {
+    xf = finishp[0];
+    yf = ny - finishp[1] - 1;
   }
 
   // another function to generate paths to target points using those distances
