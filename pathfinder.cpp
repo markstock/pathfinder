@@ -70,7 +70,7 @@ Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> generate_distance_field (
 
   const size_t nx = elev.rows();
   const size_t ny = elev.cols();
-  std::cerr << "incoming elev is " << nx << "," << ny << " and start pt is " << sx << "," << sy << std::endl;
+  std::cerr << "incoming dem is " << nx << " " << ny << " pixels and start point is " << sx << " " << (ny-sy-1) << std::endl;
 
   // ensure that the given cell is within the bounds
   assert(sx < nx and "Start cell is not inside field bounds");
@@ -253,6 +253,14 @@ int main(int argc, char const *argv[]) {
   // end point (optional)
   std::array<int32_t,2> finishp{-1,-1};
   app.add_option("-f,--finish", finishp, "finish pixel, from top left");
+  bool finish_south = false;
+  app.add_flag("--fs", finish_south, "find optimal finish pixel on the south edge");
+  bool finish_north = false;
+  app.add_flag("--fn", finish_north, "find optimal finish pixel on the north edge");
+  bool finish_east = false;
+  app.add_flag("--fe", finish_east, "find optimal finish pixel on the east edge");
+  bool finish_west = false;
+  app.add_flag("--fw", finish_west, "find optimal finish pixel on the west edge");
 
   // write out certain arrays
   bool write_distance = false;
@@ -400,13 +408,70 @@ int main(int argc, char const *argv[]) {
 
 
   // set sample end points
-  if (finishp[0] == -1 and finishp[1] == -1) {
+  if (finish_north) {
+    // find the shortest distance on the southern border
+    float mindist = std::numeric_limits<float>::max();
+    size_t minidx = -1;	// this is huge, size_t is unsigned
+    yf = ny-1;
+    for (size_t i=0; i<nx; ++i) {
+      //std::cout << "dist at " << i << " " << yf << " is " << distance(i,yf);
+      if (distance(i,yf) < mindist) {
+        mindist = distance(i,yf);
+        minidx = i;
+        //std::cout << " NEW SMALLEST";
+      }
+      //std::cout << std::endl;
+    }
+    xf = minidx;
+
+  } else if (finish_south) {
+    // find the shortest distance on the southern border
+    float mindist = std::numeric_limits<float>::max();
+    size_t minidx = -1;	// this is huge, size_t is unsigned
+    yf = 0;
+    for (size_t i=0; i<nx; ++i) {
+      if (distance(i,yf) < mindist) {
+        mindist = distance(i,yf);
+        minidx = i;
+      }
+    }
+    xf = minidx;
+
+  } else if (finish_east) {
+    // find the shortest distance on the eastern border
+    float mindist = std::numeric_limits<float>::max();
+    size_t minidx = -1;	// this is huge, size_t is unsigned
+    xf = 0;
+    for (size_t j=0; j<ny; ++j){
+      if (distance(xf,j) < mindist) {
+        mindist = distance(xf,j);
+        minidx = j;
+      }
+    }
+    yf = minidx;
+
+  } else if (finish_west) {
+    // find the shortest distance on the western border
+    float mindist = std::numeric_limits<float>::max();
+    size_t minidx = -1;	// this is huge, size_t is unsigned
+    xf = nx-1;
+    for (size_t j=0; j<ny; ++j){
+      if (distance(xf,j) < mindist) {
+        mindist = distance(xf,j);
+        minidx = j;
+      }
+    }
+    yf = minidx;
+
+  } else if (finishp[0] == -1 and finishp[1] == -1) {
     xf = nx-1;
     yf = 0;
   } else {
     xf = finishp[0];
     yf = ny - finishp[1] - 1;
   }
+
+  std::cerr << "  finish point is at " << xf << " " << (ny-yf-1) << std::endl;
 
   // another function to generate paths to target points using those distances
   std::vector<element> path = generate_path_from(distance, xf, yf);
