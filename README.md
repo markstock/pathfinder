@@ -31,5 +31,16 @@ Output should be either to raster images to use as layers, or to a vectorized fo
 
 Similar methods could be used to compute the range or effective property boundaries between a number of settlers on the same raster grid: each settler grows their land holdings at varying rates until running up against another. That may become another program.
 
+## To Do
+Store an internal list of finishing points, and compute paths to each of them from the source point.
+
+Allow existing computed paths to be added to the "easy" array so that subsequent paths will preferentially use them.
+
+Add command line args for the relative values of the cost functions: the minimum cost for terrain-only, the maximum cost addition for hard, the cost multiple for easy, etc.
+
+Write out paths in .seg format for extra processing; make sure to include z component.
+
+Allow method to optimally place a new point such that its cost to travel to a list of target points is minimized. Where roads exist, this might always choose a spot on a road or even an intersection of roads. That's how towns form, I suppose.
+
 ## Credits
 This code was written by Mark Stock <markjstock@gmail.com> in 2021.
