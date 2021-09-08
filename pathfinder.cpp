@@ -151,7 +151,7 @@ Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> generate_distance_field (
         if (use_hard) { dist += hard(i,j); }
 
         // subtract cost if easy(i,j) and easy(current.i, current.j) are > 0.0
-        if (use_easy) {}
+        if (use_easy) { dist *= 1.0 - 0.5*easy(i,j)*easy(current.i, current.j); }
 
         // reset distance on target
         const float testdist = distance(current.i, current.j) + dist;
@@ -254,6 +254,14 @@ int main(int argc, char const *argv[]) {
   std::array<int32_t,2> finishp{-1,-1};
   app.add_option("-f,--finish", finishp, "finish pixel, from top left");
 
+  // write out certain arrays
+  bool write_distance = false;
+  app.add_flag("--od", write_distance, "write distance matrix to png");
+  bool write_path = false;
+  app.add_flag("--op", write_path, "write path matrix to png");
+  bool write_map = false;
+  app.add_flag("--om", write_map, "write dem and path to a png");
+
   // finally parse
   try {
     app.parse(argc, argv);
@@ -314,7 +322,6 @@ int main(int argc, char const *argv[]) {
   Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> hard;
 
   if (not hardfile.empty()) {
-    // read a png to get the elevation
     // check the resolution first
     int hgt, wdt;
     (void) read_png_res (hardfile.c_str(), &hgt, &wdt);
@@ -339,6 +346,26 @@ int main(int argc, char const *argv[]) {
   // this would be used to prefer existing paths when pathfinding
   Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> easy;
 
+  if (not easyfile.empty()) {
+    // check the resolution first
+    int hgt, wdt;
+    (void) read_png_res (easyfile.c_str(), &hgt, &wdt);
+    if (wdt != nx) exit(1);
+    if (hgt != ny) exit(1);
+
+    // allocate the space
+    easy.resize(nx,ny);
+    float** data = allocate_2d_array_f((int)nx, (int)ny);
+
+    // read the first channel into the elevation array, scaled as 0..vscale
+    (void) read_png (easyfile.c_str(), (int)nx, (int)ny, 0, 0, 0.0, 0,
+                     data, 0.0, 1.0, nullptr, 0.0, 1.0, nullptr, 0.0, 1.0);
+
+    for (size_t i=0; i<nx; ++i) for (size_t j=0; j<ny; ++j) easy(i,j) = data[i][j];
+
+    free_2d_array_f(data);
+  }
+
 
   // set sample start point
   xs = startp[0];
@@ -357,7 +384,7 @@ int main(int argc, char const *argv[]) {
   //std::cerr << distance.block(nx-6,ny-6,6,6) << std::endl;
 
   // write out the distance matrix as a png
-  if (true) {
+  if (write_distance) {
     std::string outroot = "dist";
     float** data = allocate_2d_array_f((int)nx, (int)ny);
     for (size_t i=0; i<nx; ++i) for (size_t j=0; j<ny; ++j) data[i][j] = distance(i,j);
@@ -386,17 +413,27 @@ int main(int argc, char const *argv[]) {
 
 
   // render the path to an array
-  // and write out a modified version of the elevation with the path in black
-  if (true) {
-    Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> pathimg;
-    pathimg.resize(nx,ny);
-    pathimg.setZero(nx,ny);
+  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> pathimg;
+  pathimg.resize(nx,ny);
+  pathimg.setZero(nx,ny);
+  for (element& cell : path) { pathimg(cell.i,cell.j) = 1.0; }
 
-    for (element& cell : path) {
-      pathimg(cell.i,cell.j) = 1.0;
-    }
 
-    std::string outroot = "out";
+  // write out the path matrix as a png
+  if (write_path) {
+    std::string outroot = "path";
+    float** data = allocate_2d_array_f((int)nx, (int)ny);
+    for (size_t i=0; i<nx; ++i) for (size_t j=0; j<ny; ++j) data[i][j] = pathimg(i,j);
+
+    (void) write_png (outroot.c_str(), (int)nx, (int)ny, FALSE, TRUE,
+                      data, 0.0, 1.0, nullptr, 0.0, 1.0, nullptr, 0.0, 1.0);
+
+    free_2d_array_f(data);
+  }
+
+  // write out a combination of the dem and path matrix as a png
+  if (write_map) {
+    std::string outroot = "map";
     float** data = allocate_2d_array_f((int)nx, (int)ny);
     for (size_t i=0; i<nx; ++i) for (size_t j=0; j<ny; ++j) data[i][j] = elev(i,j);
 
