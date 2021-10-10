@@ -640,10 +640,12 @@ int main(int argc, char const *argv[]) {
     // make the line darker or lighter (to see it)
     const float factor = 1.0/(vscale*(float)nx);
     for (size_t i=0; i<nx; ++i) for (size_t j=0; j<ny; ++j) {
+      // add easy and path together
+      const float pathsum = std::max(pathimg(i,j), easy(i,j));
       if (data[i][j]*factor < 0.5) {
-        data[i][j] += 0.5*pathimg(i,j)/(path_max*factor);
+        data[i][j] += 0.5*pathsum/(path_max*factor);
       } else {
-        data[i][j] -= 0.5*pathimg(i,j)/(path_max*factor);
+        data[i][j] -= 0.5*pathsum/(path_max*factor);
       }
     }
 
