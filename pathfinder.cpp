@@ -45,15 +45,15 @@ struct element {
 // several cost functions
 
 float cost_uniform (const float _zthis, const float _zneib, const float _xydist) {
-  return _xydist * 0.01;
+  return _xydist * 0.001;
 }
 
 float cost_symmetric (const float _zthis, const float _zneib, const float _xydist) {
-  return _xydist * (0.01 + std::pow((_zneib-_zthis)/_xydist, 2));
+  return _xydist * (0.001 + std::pow((_zneib-_zthis)/_xydist, 2));
 }
 
 float cost_asymmetric (const float _zthis, const float _zneib, const float _xydist) {
-  return _xydist * (0.01 + std::pow(0.04 + (_zneib-_zthis)/_xydist, 2));
+  return _xydist * (0.001 + std::pow(0.04 + (_zneib-_zthis)/_xydist, 2));
 }
 
 
@@ -263,12 +263,12 @@ int main(int argc, char const *argv[]) {
   app.add_flag("--fw", finish_west, "find optimal finish pixel on the west edge");
 
   // write out certain arrays
-  bool write_distance = false;
-  app.add_flag("--od", write_distance, "write distance matrix to png");
-  bool write_path = false;
-  app.add_flag("--op", write_path, "write path matrix to png");
-  bool write_map = false;
-  app.add_flag("--om", write_map, "write dem and path to a png");
+  std::string outdist;
+  app.add_option("--od", outdist, "write distance matrix to png");
+  std::string outpath;
+  app.add_option("--op", outpath, "write path matrix to png");
+  std::string outmap;
+  app.add_option("--om", outmap, "write dem and path to a png");
 
   // finally parse
   try {
@@ -392,23 +392,30 @@ int main(int argc, char const *argv[]) {
   //std::cerr << distance.block(nx-6,ny-6,6,6) << std::endl;
 
   // write out the distance matrix as a png
-  if (write_distance) {
-    std::string outroot = "dist";
+  if (not outdist.empty()) {
     float** data = allocate_2d_array_f((int)nx, (int)ny);
     for (size_t i=0; i<nx; ++i) for (size_t j=0; j<ny; ++j) data[i][j] = distance(i,j);
 
     // find mins and maxs
     const float scale = distance.maxCoeff() - distance.minCoeff();
 
-    (void) write_png (outroot.c_str(), (int)nx, (int)ny, FALSE, TRUE,
+    (void) write_png (outdist.c_str(), (int)nx, (int)ny, FALSE, TRUE,
                       data, 0.0, scale, nullptr, 0.0, 1.0, nullptr, 0.0, 1.0);
 
     free_2d_array_f(data);
   }
 
+  // now generate paths based on desired end points
 
-  // set sample end points
+  // array to store paths in
+  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> pathimg;
+  pathimg.resize(nx,ny);
+  pathimg.setZero(nx,ny);
+
+  // add all paths defined
   if (finish_north) {
+    std::cerr << "Finding best path to northern border" << std::endl;
+
     // find the shortest distance on the southern border
     float mindist = std::numeric_limits<float>::max();
     size_t minidx = -1;	// this is huge, size_t is unsigned
@@ -423,8 +430,16 @@ int main(int argc, char const *argv[]) {
       //std::cout << std::endl;
     }
     xf = minidx;
+    std::cerr << "  finish point is at " << xf << " " << (ny-yf-1) << std::endl;
 
-  } else if (finish_south) {
+    // generate paths to target and render to pathimg field
+    std::vector<element> path = generate_path_from(distance, xf, yf);
+    for (element& cell : path) { pathimg(cell.i,cell.j) += 1.0; }
+  }
+
+  if (finish_south) {
+    std::cerr << "Finding best path to southern border" << std::endl;
+
     // find the shortest distance on the southern border
     float mindist = std::numeric_limits<float>::max();
     size_t minidx = -1;	// this is huge, size_t is unsigned
@@ -436,8 +451,16 @@ int main(int argc, char const *argv[]) {
       }
     }
     xf = minidx;
+    std::cerr << "  finish point is at " << xf << " " << (ny-yf-1) << std::endl;
 
-  } else if (finish_east) {
+    // generate paths to target and render to pathimg field
+    std::vector<element> path = generate_path_from(distance, xf, yf);
+    for (element& cell : path) { pathimg(cell.i,cell.j) += 1.0; }
+  }
+
+  if (finish_east) {
+    std::cerr << "Finding best path to eastern border" << std::endl;
+
     // find the shortest distance on the eastern border
     float mindist = std::numeric_limits<float>::max();
     size_t minidx = -1;	// this is huge, size_t is unsigned
@@ -449,8 +472,16 @@ int main(int argc, char const *argv[]) {
       }
     }
     yf = minidx;
+    std::cerr << "  finish point is at " << xf << " " << (ny-yf-1) << std::endl;
 
-  } else if (finish_west) {
+    // generate paths to target and render to pathimg field
+    std::vector<element> path = generate_path_from(distance, xf, yf);
+    for (element& cell : path) { pathimg(cell.i,cell.j) += 1.0; }
+  }
+
+  if (finish_west) {
+    std::cerr << "Finding best path to western border" << std::endl;
+
     // find the shortest distance on the western border
     float mindist = std::numeric_limits<float>::max();
     size_t minidx = -1;	// this is huge, size_t is unsigned
@@ -462,43 +493,50 @@ int main(int argc, char const *argv[]) {
       }
     }
     yf = minidx;
+    std::cerr << "  finish point is at " << xf << " " << (ny-yf-1) << std::endl;
 
-  } else if (finishp[0] == -1 and finishp[1] == -1) {
-    xf = nx-1;
-    yf = 0;
-  } else {
-    xf = finishp[0];
-    yf = ny - finishp[1] - 1;
+    // generate paths to target and render to pathimg field
+    std::vector<element> path = generate_path_from(distance, xf, yf);
+    for (element& cell : path) { pathimg(cell.i,cell.j) += 1.0; }
   }
 
-  std::cerr << "  finish point is at " << xf << " " << (ny-yf-1) << std::endl;
+  if (finishp[0] == -1 and finishp[1] == -1) {
+    std::cerr << "No finish pixel given, creating no paths" << std::endl;
+    //std::cerr << "No finish pixel given, finding best path to bottom right corner" << std::endl;
 
-  // another function to generate paths to target points using those distances
-  std::vector<element> path = generate_path_from(distance, xf, yf);
+    //xf = nx-1;
+    //yf = 0;
+    //std::cerr << "  finish point is at " << xf << " " << (ny-yf-1) << std::endl;
 
+    // generate paths to target and render to pathimg field
+    //std::vector<element> path = generate_path_from(distance, xf, yf);
+    //for (element& cell : path) { pathimg(cell.i,cell.j) += 1.0; }
 
-  // render the path to an array
-  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> pathimg;
-  pathimg.resize(nx,ny);
-  pathimg.setZero(nx,ny);
-  for (element& cell : path) { pathimg(cell.i,cell.j) = 1.0; }
+  } else {
+    std::cerr << "Finding best path to point " << finishp[0] << " " << finishp[1] << std::endl;
+    xf = finishp[0];
+    yf = ny - finishp[1] - 1;
+
+    // generate paths to target and render to pathimg field
+    std::vector<element> path = generate_path_from(distance, xf, yf);
+    for (element& cell : path) { pathimg(cell.i,cell.j) += 1.0; }
+  }
+
 
 
   // write out the path matrix as a png
-  if (write_path) {
-    std::string outroot = "path";
+  if (not outpath.empty()) {
     float** data = allocate_2d_array_f((int)nx, (int)ny);
     for (size_t i=0; i<nx; ++i) for (size_t j=0; j<ny; ++j) data[i][j] = pathimg(i,j);
 
-    (void) write_png (outroot.c_str(), (int)nx, (int)ny, FALSE, TRUE,
+    (void) write_png (outpath.c_str(), (int)nx, (int)ny, FALSE, TRUE,
                       data, 0.0, 1.0, nullptr, 0.0, 1.0, nullptr, 0.0, 1.0);
 
     free_2d_array_f(data);
   }
 
   // write out a combination of the dem and path matrix as a png
-  if (write_map) {
-    std::string outroot = "map";
+  if (not outmap.empty()) {
     float** data = allocate_2d_array_f((int)nx, (int)ny);
     for (size_t i=0; i<nx; ++i) for (size_t j=0; j<ny; ++j) data[i][j] = elev(i,j);
 
@@ -512,7 +550,7 @@ int main(int argc, char const *argv[]) {
       }
     }
 
-    (void) write_png (outroot.c_str(), (int)nx, (int)ny, FALSE, TRUE,
+    (void) write_png (outmap.c_str(), (int)nx, (int)ny, FALSE, TRUE,
                       data, 0.0, vscale*(float)nx, nullptr, 0.0, 1.0, nullptr, 0.0, 1.0);
 
     free_2d_array_f(data);

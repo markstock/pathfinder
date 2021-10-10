@@ -11,7 +11,7 @@
 /*
  * print a frame using 1 or 3 channels to png - 2D
  */
-int write_png (const char *outfileroot, const int nx, const int ny,
+int write_png (const char *outfile, const int nx, const int ny,
    const int three_channel, const int high_depth,
    float **red, float redmin, float redrange,
    float **grn, float grnmin, float grnrange,
@@ -19,7 +19,6 @@ int write_png (const char *outfileroot, const int nx, const int ny,
 
    int autorange = FALSE;
    int i,j,printval,bit_depth;
-   char outfile[MAXCHARS];
    float newminrange,newmaxrange;
    // gamma of 1.8 looks normal on most monitors...that display properly.
    //float gamma = 1.8;
@@ -107,9 +106,6 @@ int write_png (const char *outfileroot, const int nx, const int ny,
       }
       printf("  output range %g %g\n",newminrange,newmaxrange);
    }
- 
-   // make the preliminary filename (write the pgm to outfile)
-   sprintf(outfile,"%s.png",outfileroot);
 
    // write the file
    fp = fopen(outfile,"wb");
