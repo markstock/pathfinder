@@ -44,16 +44,16 @@ struct element {
 
 // several cost functions
 
-float cost_uniform (const float _zthis, const float _zneib, const float _xydist) {
-  return _xydist * 0.001;
+float cost_uniform (const float _scale, const float _zthis, const float _zneib, const float _xydist) {
+  return _xydist * _scale;
 }
 
-float cost_symmetric (const float _zthis, const float _zneib, const float _xydist) {
-  return _xydist * (0.001 + std::pow((_zneib-_zthis)/_xydist, 2));
+float cost_symmetric (const float _scale, const float _zthis, const float _zneib, const float _xydist) {
+  return _xydist * (_scale + std::pow((_zneib-_zthis)/_xydist, 2));
 }
 
-float cost_asymmetric (const float _zthis, const float _zneib, const float _xydist) {
-  return _xydist * (0.001 + std::pow(0.04 + (_zneib-_zthis)/_xydist, 2));
+float cost_asymmetric (const float _scale, const float _zthis, const float _zneib, const float _xydist) {
+  return _xydist * (_scale + std::pow(0.04 + (_zneib-_zthis)/_xydist, 2));
 }
 
 
@@ -63,6 +63,7 @@ Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> generate_distance_field (
     Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>& elev,
     Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>& hard,
     Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>& easy,
+    const float basecost,
     const size_t sx, const size_t sy) {
 
   const bool use_hard = (hard.rows() == elev.rows() and hard.cols() == elev.cols());
@@ -142,9 +143,9 @@ Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> generate_distance_field (
         //std::cout << "  testing cell " << i << " " << j << std::endl;
 
         // compute distance (cost) from current to target
-        //float dist = cost_uniform(thiselev, elev(i,j), euclid(current.i-i+1, current.j-j+1));
-        float dist = cost_symmetric(thiselev, elev(i,j), euclid(current.i-i+1, current.j-j+1));
-        //float dist = cost_asymmetric(thiselev, elev(i,j), euclid(current.i-i+1, current.j-j+1));
+        //float dist = cost_uniform(basecost, thiselev, elev(i,j), euclid(current.i-i+1, current.j-j+1));
+        float dist = cost_symmetric(basecost, thiselev, elev(i,j), euclid(current.i-i+1, current.j-j+1));
+        //float dist = cost_asymmetric(basecost, thiselev, elev(i,j), euclid(current.i-i+1, current.j-j+1));
         //std::cout << "    unvisited, distance is " << euclid(current.i-i+1, current.j-j+1) << " " << dist << std::endl;
 
         // add a cost if hard(i,j) > 0.0 (like open water, a river, woods, etc.)
@@ -237,8 +238,12 @@ int main(int argc, char const *argv[]) {
   app.add_option("-d,--dem", demfile, "digital elevation model as png");
 
   // the vertical scale of black-to-white, scaled by the x size of the terrain
-  float vscale = 1.0;
+  float vscale = 0.1;
   app.add_option("-v,--vert", vscale, "vertical scale of dem w.r.t. horizontal scale");
+
+  // constant base cost - the basic cost of moving one pixel over flat ground
+  float cbc = 0.01;
+  app.add_option("-c,--cbc", cbc, "constant base cost, 0..1, high disregards slope, low weighs slope more heavily");
 
   // optional png images for hard or easy cells/traversals
   std::string hardfile;
@@ -251,6 +256,7 @@ int main(int argc, char const *argv[]) {
   app.add_option("-s,--start", startp, "start pixel, from top left");
 
   // end point (optional)
+  std::vector<std::array<int32_t,2>> finpts;
   std::array<int32_t,2> finishp{-1,-1};
   app.add_option("-f,--finish", finishp, "finish pixel, from top left");
   bool finish_south = false;
@@ -261,6 +267,8 @@ int main(int argc, char const *argv[]) {
   app.add_flag("--fe", finish_east, "find optimal finish pixel on the east edge");
   bool finish_west = false;
   app.add_flag("--fw", finish_west, "find optimal finish pixel on the west edge");
+  std::string ffile;
+  app.add_option("--ff", ffile, "file from which to read finish pixel positions");
 
   // write out certain arrays
   std::string outdist;
@@ -385,7 +393,7 @@ int main(int argc, char const *argv[]) {
 
   // one function to generate distances to a given point/cell
   std::cout << "Generating distance field" << std::endl;
-  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> distance = generate_distance_field(elev, hard, easy, xs, ys);
+  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
   bool must_recalculate = false;
 
   // write out corners of matrix
@@ -439,7 +447,7 @@ int main(int argc, char const *argv[]) {
 
       // recalculate distances
       if (must_recalculate) {
-        distance = generate_distance_field(elev, hard, easy, xs, ys);
+        distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
         must_recalculate = false;
       }
     }
@@ -481,7 +489,7 @@ int main(int argc, char const *argv[]) {
 
       // recalculate distances
       if (must_recalculate) {
-        distance = generate_distance_field(elev, hard, easy, xs, ys);
+        distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
         must_recalculate = false;
       }
     }
@@ -520,7 +528,7 @@ int main(int argc, char const *argv[]) {
 
       // recalculate distances
       if (must_recalculate) {
-        distance = generate_distance_field(elev, hard, easy, xs, ys);
+        distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
         must_recalculate = false;
       }
     }
@@ -559,7 +567,7 @@ int main(int argc, char const *argv[]) {
 
       // recalculate distances
       if (must_recalculate) {
-        distance = generate_distance_field(elev, hard, easy, xs, ys);
+        distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
         must_recalculate = false;
       }
     }
@@ -603,7 +611,7 @@ int main(int argc, char const *argv[]) {
 
       // recalculate distances
       if (must_recalculate) {
-        distance = generate_distance_field(elev, hard, easy, xs, ys);
+        distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
         must_recalculate = false;
       }
     }
