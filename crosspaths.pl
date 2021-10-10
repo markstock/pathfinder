@@ -49,7 +49,7 @@ while (1) {
 
   # travel West and find optimal dest
   $sx = $xsize-1;
-  my $command = $basecommand." -s ${sx} ${sy} --easy ns.png --fw --op nsew.png";
+  my $command = $basecommand." -s ${sx} ${sy} --easy ns.png --fw --op ew.png";
   print "running ($command)\n";
   my $results = `${command} | grep \"finish point\"`;
   # (finish point is at 1296 0)
@@ -58,7 +58,7 @@ while (1) {
   # travel East and find optimal dest
   $sx = 0;
   $sy = $tokens[5];
-  $command = $basecommand." -s ${sx} ${sy} --easy ns.png --fe --op nsew.png";
+  $command = $basecommand." -s ${sx} ${sy} --easy ns.png --fe --op ew.png";
   print "running ($command)\n";
   $results = `${command} | grep \"finish point\"`;
   @tokens = split(' ',$results);
@@ -67,3 +67,11 @@ while (1) {
   last if ($sy == $lastsy);
 }
 
+# finally merge the two paths
+my $command = "pngtopam ns.png > .tempns.pam";
+print "${command}\n"; system $command;
+$command = "pngtopam ew.png > .tempew.pam";
+print "${command}\n"; system $command;
+$command = "pamarith -maximum .tempns.pam .tempew.pam | pamtopng > nsew.png";
+print "${command}\n"; system $command;
+unlink ".tempns.pam", ".tempew.pam";
