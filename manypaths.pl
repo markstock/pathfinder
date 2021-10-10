@@ -15,7 +15,7 @@ my $xsize = $sizes[0];
 my $ysize = $sizes[1];
 print "Input dem (${dem}) is ${xsize} x ${ysize}\n";
 
-my $basecommand = "./pathfinder -d ${dem} -v ${vscale}";
+my $basecommand = "./pathfinder -d ${dem} -v ${vscale} -c 0.01";
 
 # loop over all the settlers
 for (my $i=0; $i<$num; $i=$i+1) {
