@@ -256,7 +256,6 @@ int main(int argc, char const *argv[]) {
   app.add_option("-s,--start", startp, "start pixel, from top left");
 
   // end point (optional)
-  std::vector<std::array<int32_t,2>> finpts;
   std::array<int32_t,2> finishp{-1,-1};
   app.add_option("-f,--finish", finishp, "finish pixel, from top left");
   bool finish_south = false;
@@ -288,10 +287,15 @@ int main(int argc, char const *argv[]) {
   // input data
   // a floating point heightfield (16b grey)
   size_t nx, ny;
-  // start and end points
-  size_t xs,ys,xf,yf;
 
+  // recalculate between each destination (to account for new "easy" edges)?
   bool recalculate_distance_field = true;
+
+  // make list of finish points
+  std::vector<std::array<int32_t,2>> finpts;
+  if (not (finishp[0] == -1 and finishp[1] == -1)) {
+    finpts.emplace_back(std::array<int32_t,2>({finishp[0],finishp[1]}));
+  }
 
   // load the data
   nx = 100;
@@ -387,8 +391,8 @@ int main(int argc, char const *argv[]) {
 
 
   // set sample start point
-  xs = startp[0];
-  ys = ny - startp[1] - 1;
+  const size_t xs = startp[0];
+  const size_t ys = ny - startp[1] - 1;
 
 
   // one function to generate distances to a given point/cell
@@ -455,7 +459,7 @@ int main(int argc, char const *argv[]) {
     // find the shortest distance on the southern border
     float mindist = std::numeric_limits<float>::max();
     size_t minidx = -1;	// this is huge, size_t is unsigned
-    yf = ny-1;
+    const size_t yf = ny-1;
     for (size_t i=0; i<nx; ++i) {
       //std::cout << "dist at " << i << " " << yf << " is " << distance(i,yf);
       if (distance(i,yf) < mindist) {
@@ -465,7 +469,7 @@ int main(int argc, char const *argv[]) {
       }
       //std::cout << std::endl;
     }
-    xf = minidx;
+    const size_t xf = minidx;
     std::cout << "  finish point is at " << xf << " " << (ny-yf-1) << std::endl;
 
     // generate paths to target and render to pathimg field
@@ -497,14 +501,14 @@ int main(int argc, char const *argv[]) {
     // find the shortest distance on the southern border
     float mindist = std::numeric_limits<float>::max();
     size_t minidx = -1;	// this is huge, size_t is unsigned
-    yf = 0;
+    const size_t yf = 0;
     for (size_t i=0; i<nx; ++i) {
       if (distance(i,yf) < mindist) {
         mindist = distance(i,yf);
         minidx = i;
       }
     }
-    xf = minidx;
+    const size_t xf = minidx;
     std::cout << "  finish point is at " << xf << " " << (ny-yf-1) << std::endl;
 
     // generate paths to target and render to pathimg field
@@ -536,14 +540,14 @@ int main(int argc, char const *argv[]) {
     // find the shortest distance on the eastern border
     float mindist = std::numeric_limits<float>::max();
     size_t minidx = -1;	// this is huge, size_t is unsigned
-    xf = nx-1;
+    const size_t xf = nx-1;
     for (size_t j=0; j<ny; ++j){
       if (distance(xf,j) < mindist) {
         mindist = distance(xf,j);
         minidx = j;
       }
     }
-    yf = minidx;
+    const size_t yf = minidx;
     std::cout << "  finish point is at " << xf << " " << (ny-yf-1) << std::endl;
 
     // generate paths to target and render to pathimg field
@@ -575,14 +579,14 @@ int main(int argc, char const *argv[]) {
     // find the shortest distance on the western border
     float mindist = std::numeric_limits<float>::max();
     size_t minidx = -1;	// this is huge, size_t is unsigned
-    xf = 0;
+    const size_t xf = 0;
     for (size_t j=0; j<ny; ++j){
       if (distance(xf,j) < mindist) {
         mindist = distance(xf,j);
         minidx = j;
       }
     }
-    yf = minidx;
+    const size_t yf = minidx;
     std::cout << "  finish point is at " << xf << " " << (ny-yf-1) << std::endl;
 
     // generate paths to target and render to pathimg field
@@ -593,13 +597,11 @@ int main(int argc, char const *argv[]) {
     must_recalculate = true;
   }
 
-  if (finishp[0] == -1 and finishp[1] == -1) {
-    // do nothing
-
-  } else {
-    std::cout << "Finding best path to point " << finishp[0] << " " << finishp[1] << std::endl;
-    xf = finishp[0];
-    yf = ny - finishp[1] - 1;
+  // now, do the list of finish points
+  for (auto &finish : finpts) {
+    std::cout << "Finding best path to point " << finish[0] << " " << finish[1] << std::endl;
+    const size_t xf = finish[0];
+    const size_t yf = ny - finish[1] - 1;
 
     if (recalculate_distance_field) {
       // convert path to "easy" array
