@@ -188,6 +188,7 @@ std::vector<element> generate_path_from(
   // use the distance matrix to generate the vectorial path
   std::vector<element> path;
   path.emplace_back(element(tx,ty,distance(tx,ty)));
+
   // starting at the end point, march along the direction of the lowest distance
   while (true) {
 
@@ -228,7 +229,7 @@ std::vector<element> generate_path_from(
 
 int main(int argc, char const *argv[]) {
 
-  std::cout << "pathfinder v1.0" << std::endl << std::endl;
+  std::cout << "pathfinder v1.0\n";
 
   // process command line args
   CLI::App app{"Find optimal paths in DEMs with modifier fields"};
@@ -251,11 +252,14 @@ int main(int argc, char const *argv[]) {
   std::string easyfile;
   app.add_option("-e,--easy", easyfile, "png with white areas easier to access");
 
-  // start point
-  std::array<int32_t,2> startp{0,0};
+  // single start point
+  std::array<int32_t,2> startp{-1,-1};
   app.add_option("-s,--start", startp, "start pixel, from top left");
+  // file with multiple start points
+  std::string sfile;
+  app.add_option("--sf", sfile, "file from which to read start pixel positions");
 
-  // end point (optional)
+  // single end point (optional)
   std::array<int32_t,2> finishp{-1,-1};
   app.add_option("-f,--finish", finishp, "finish pixel, from top left");
   bool finish_south = false;
@@ -266,6 +270,7 @@ int main(int argc, char const *argv[]) {
   app.add_flag("--fe", finish_east, "find optimal finish pixel on the east edge");
   bool finish_west = false;
   app.add_flag("--fw", finish_west, "find optimal finish pixel on the west edge");
+  // file with multiple finish points
   std::string ffile;
   app.add_option("--ff", ffile, "file from which to read finish pixel positions");
 
@@ -291,11 +296,21 @@ int main(int argc, char const *argv[]) {
   // recalculate between each destination (to account for new "easy" edges)?
   bool recalculate_distance_field = true;
 
-  // make list of finish points
-  std::vector<std::array<int32_t,2>> finpts;
-  if (not (finishp[0] == -1 and finishp[1] == -1)) {
-    finpts.emplace_back(std::array<int32_t,2>({finishp[0],finishp[1]}));
+  // make list of start points
+  std::vector<std::array<int32_t,2>> startpts;
+  if (not (startp[0] == -1 and startp[1] == -1)) {
+    startpts.emplace_back(std::array<int32_t,2>({startp[0],startp[1]}));
   }
+
+  // make list of finish points
+  std::vector<std::array<int32_t,2>> finishpts;
+  if (not (finishp[0] == -1 and finishp[1] == -1)) {
+    finishpts.emplace_back(std::array<int32_t,2>({finishp[0],finishp[1]}));
+  }
+
+  //
+  // Preliminary work - load in the arrays
+  //
 
   // load the data
   nx = 100;
@@ -389,247 +404,254 @@ int main(int argc, char const *argv[]) {
     free_2d_array_f(data);
   }
 
-
-  // set sample start point
-  const size_t xs = startp[0];
-  const size_t ys = ny - startp[1] - 1;
-
-
-  // one function to generate distances to a given point/cell
-  std::cout << "Generating distance field" << std::endl;
-  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
-  bool must_recalculate = false;
-
-  // write out corners of matrix
-  //std::cout << std::endl;
-  //std::cout << "Top left corner of distance matrix:" << std::endl;
-  //std::cout << distance.block(0,0,6,6) << std::endl;
-  //std::cout << std::endl;
-  //std::cout << "Bottom right corner of distance matrix:" << std::endl;
-  //std::cout << distance.block(nx-6,ny-6,6,6) << std::endl;
-
-  // write out the distance matrix as a png
-  if (not outdist.empty()) {
-    std::cout << "Writing distances to " << outpath << std::endl;
-
-    float** data = allocate_2d_array_f((int)nx, (int)ny);
-    for (size_t i=0; i<nx; ++i) for (size_t j=0; j<ny; ++j) data[i][j] = distance(i,j);
-
-    // find mins and maxs
-    const float scale = distance.maxCoeff() - distance.minCoeff();
-
-    (void) write_png (outdist.c_str(), (int)nx, (int)ny, FALSE, TRUE,
-                      data, 0.0, scale, nullptr, 0.0, 1.0, nullptr, 0.0, 1.0);
-
-    free_2d_array_f(data);
-  }
-
-  // now generate paths based on desired end points
-
   // array to store paths in
   Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> pathimg;
   pathimg.resize(nx,ny);
   pathimg.setZero(nx,ny);
   float path_max = 0.0;
-  // and re-usable path list
-  std::vector<element> path;
 
-  // add paths to each destination point in the given input file
-  // later
+  //
+  // Process each start-finish point pair
+  //
 
-  // add all paths defined
-  if (finish_north) {
-    std::cout << "Finding best path to northern border" << std::endl;
+  // loop over all given start points
+  for (auto &start : startpts) {
 
-    if (recalculate_distance_field) {
-      // convert path to "easy" array
-      if (easy.rows() != elev.rows() and easy.cols() != elev.cols()) {
-        easy.resize(nx,ny);
-        easy.setZero(nx,ny);
-      }
-      for (element& cell : path) { easy(cell.i,cell.j) = 1.0; }
+    // set start point
+    const size_t xs = start[0];
+    const size_t ys = ny - start[1] - 1;
 
-      // recalculate distances
-      if (must_recalculate) {
-        distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
-        must_recalculate = false;
-      }
+    // one function to generate distances to a given point/cell
+    std::cout << "\nGenerating distance field from " << start[0] << " " << start[1] << std::endl;
+    Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
+    bool must_recalculate = false;
+
+    // write out corners of matrix
+    //std::cout << std::endl;
+    //std::cout << "Top left corner of distance matrix:" << std::endl;
+    //std::cout << distance.block(0,0,6,6) << std::endl;
+    //std::cout << std::endl;
+    //std::cout << "Bottom right corner of distance matrix:" << std::endl;
+    //std::cout << distance.block(nx-6,ny-6,6,6) << std::endl;
+
+    // write out the distance matrix as a png
+    if (not outdist.empty()) {
+      std::cout << "Writing distances to " << outpath << std::endl;
+
+      float** data = allocate_2d_array_f((int)nx, (int)ny);
+      for (size_t i=0; i<nx; ++i) for (size_t j=0; j<ny; ++j) data[i][j] = distance(i,j);
+
+      // find mins and maxs
+      const float scale = distance.maxCoeff() - distance.minCoeff();
+
+      (void) write_png (outdist.c_str(), (int)nx, (int)ny, FALSE, TRUE,
+                        data, 0.0, scale, nullptr, 0.0, 1.0, nullptr, 0.0, 1.0);
+
+      free_2d_array_f(data);
     }
 
-    // find the shortest distance on the southern border
-    float mindist = std::numeric_limits<float>::max();
-    size_t minidx = -1;	// this is huge, size_t is unsigned
-    const size_t yf = ny-1;
-    for (size_t i=0; i<nx; ++i) {
-      //std::cout << "dist at " << i << " " << yf << " is " << distance(i,yf);
-      if (distance(i,yf) < mindist) {
-        mindist = distance(i,yf);
-        minidx = i;
-        //std::cout << " NEW SMALLEST";
+    // now generate paths based on desired end points
+
+    // and re-usable path list
+    std::vector<element> path;
+
+    // add all paths defined
+    if (finish_north) {
+      std::cout << "Finding best path to northern border" << std::endl;
+
+      if (recalculate_distance_field) {
+        // convert path to "easy" array
+        if (easy.rows() != elev.rows() and easy.cols() != elev.cols()) {
+          easy.resize(nx,ny);
+          easy.setZero(nx,ny);
+        }
+        for (element& cell : path) { easy(cell.i,cell.j) = 1.0; }
+
+        // recalculate distances
+        if (must_recalculate) {
+          distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
+          must_recalculate = false;
+        }
       }
-      //std::cout << std::endl;
-    }
-    const size_t xf = minidx;
-    std::cout << "  finish point is at " << xf << " " << (ny-yf-1) << std::endl;
 
-    // generate paths to target and render to pathimg field
-    path.clear();
-    path = generate_path_from(distance, xf, yf);
-    for (element& cell : path) { pathimg(cell.i,cell.j) = 1.0; }
-    path_max = 1.0;
-    must_recalculate = true;
-  }
-
-  if (finish_south) {
-    std::cout << "Finding best path to southern border" << std::endl;
-
-    if (recalculate_distance_field) {
-      // convert path to "easy" array
-      if (easy.rows() != elev.rows() and easy.cols() != elev.cols()) {
-        easy.resize(nx,ny);
-        easy.setZero(nx,ny);
+      // find the shortest distance on the southern border
+      float mindist = std::numeric_limits<float>::max();
+      size_t minidx = -1;	// this is huge, size_t is unsigned
+      const size_t yf = ny-1;
+      for (size_t i=0; i<nx; ++i) {
+        //std::cout << "dist at " << i << " " << yf << " is " << distance(i,yf);
+        if (distance(i,yf) < mindist) {
+          mindist = distance(i,yf);
+          minidx = i;
+          //std::cout << " NEW SMALLEST";
+        }
+        //std::cout << std::endl;
       }
-      for (element& cell : path) { easy(cell.i,cell.j) = 1.0; }
+      const size_t xf = minidx;
+      std::cout << "  finish point is at " << xf << " " << (ny-yf-1) << std::endl;
 
-      // recalculate distances
-      if (must_recalculate) {
-        distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
-        must_recalculate = false;
-      }
-    }
-
-    // find the shortest distance on the southern border
-    float mindist = std::numeric_limits<float>::max();
-    size_t minidx = -1;	// this is huge, size_t is unsigned
-    const size_t yf = 0;
-    for (size_t i=0; i<nx; ++i) {
-      if (distance(i,yf) < mindist) {
-        mindist = distance(i,yf);
-        minidx = i;
-      }
-    }
-    const size_t xf = minidx;
-    std::cout << "  finish point is at " << xf << " " << (ny-yf-1) << std::endl;
-
-    // generate paths to target and render to pathimg field
-    path.clear();
-    path = generate_path_from(distance, xf, yf);
-    for (element& cell : path) { pathimg(cell.i,cell.j) = 1.0; }
-    path_max = 1.0;
-    must_recalculate = true;
-  }
-
-  if (finish_east) {
-    std::cout << "Finding best path to eastern border" << std::endl;
-
-    if (recalculate_distance_field) {
-      // convert path to "easy" array
-      if (easy.rows() != elev.rows() and easy.cols() != elev.cols()) {
-        easy.resize(nx,ny);
-        easy.setZero(nx,ny);
-      }
-      for (element& cell : path) { easy(cell.i,cell.j) = 1.0; }
-
-      // recalculate distances
-      if (must_recalculate) {
-        distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
-        must_recalculate = false;
-      }
+      // generate paths to target and render to pathimg field
+      path.clear();
+      path = generate_path_from(distance, xf, yf);
+      for (element& cell : path) { pathimg(cell.i,cell.j) = 1.0; }
+      path_max = 1.0;
+      must_recalculate = true;
     }
 
-    // find the shortest distance on the eastern border
-    float mindist = std::numeric_limits<float>::max();
-    size_t minidx = -1;	// this is huge, size_t is unsigned
-    const size_t xf = nx-1;
-    for (size_t j=0; j<ny; ++j){
-      if (distance(xf,j) < mindist) {
-        mindist = distance(xf,j);
-        minidx = j;
+    if (finish_south) {
+      std::cout << "Finding best path to southern border" << std::endl;
+
+      if (recalculate_distance_field) {
+        // convert path to "easy" array
+        if (easy.rows() != elev.rows() and easy.cols() != elev.cols()) {
+          easy.resize(nx,ny);
+          easy.setZero(nx,ny);
+        }
+        for (element& cell : path) { easy(cell.i,cell.j) = 1.0; }
+
+        // recalculate distances
+        if (must_recalculate) {
+          distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
+          must_recalculate = false;
+        }
       }
-    }
-    const size_t yf = minidx;
-    std::cout << "  finish point is at " << xf << " " << (ny-yf-1) << std::endl;
 
-    // generate paths to target and render to pathimg field
-    path.clear();
-    path = generate_path_from(distance, xf, yf);
-    for (element& cell : path) { pathimg(cell.i,cell.j) = 1.0; }
-    path_max = 1.0;
-    must_recalculate = true;
-  }
-
-  if (finish_west) {
-    std::cout << "Finding best path to western border" << std::endl;
-
-    if (recalculate_distance_field) {
-      // convert path to "easy" array
-      if (easy.rows() != elev.rows() and easy.cols() != elev.cols()) {
-        easy.resize(nx,ny);
-        easy.setZero(nx,ny);
+      // find the shortest distance on the southern border
+      float mindist = std::numeric_limits<float>::max();
+      size_t minidx = -1;	// this is huge, size_t is unsigned
+      const size_t yf = 0;
+      for (size_t i=0; i<nx; ++i) {
+        if (distance(i,yf) < mindist) {
+          mindist = distance(i,yf);
+          minidx = i;
+        }
       }
-      for (element& cell : path) { easy(cell.i,cell.j) = 1.0; }
+      const size_t xf = minidx;
+      std::cout << "  finish point is at " << xf << " " << (ny-yf-1) << std::endl;
 
-      // recalculate distances
-      if (must_recalculate) {
-        distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
-        must_recalculate = false;
-      }
-    }
-
-    // find the shortest distance on the western border
-    float mindist = std::numeric_limits<float>::max();
-    size_t minidx = -1;	// this is huge, size_t is unsigned
-    const size_t xf = 0;
-    for (size_t j=0; j<ny; ++j){
-      if (distance(xf,j) < mindist) {
-        mindist = distance(xf,j);
-        minidx = j;
-      }
-    }
-    const size_t yf = minidx;
-    std::cout << "  finish point is at " << xf << " " << (ny-yf-1) << std::endl;
-
-    // generate paths to target and render to pathimg field
-    path.clear();
-    path = generate_path_from(distance, xf, yf);
-    for (element& cell : path) { pathimg(cell.i,cell.j) = 1.0; }
-    path_max = 1.0;
-    must_recalculate = true;
-  }
-
-  // now, do the list of finish points
-  for (auto &finish : finpts) {
-    std::cout << "Finding best path to point " << finish[0] << " " << finish[1] << std::endl;
-    const size_t xf = finish[0];
-    const size_t yf = ny - finish[1] - 1;
-
-    if (recalculate_distance_field) {
-      // convert path to "easy" array
-      if (easy.rows() != elev.rows() and easy.cols() != elev.cols()) {
-        easy.resize(nx,ny);
-        easy.setZero(nx,ny);
-      }
-      for (element& cell : path) { easy(cell.i,cell.j) = 1.0; }
-
-      // recalculate distances
-      if (must_recalculate) {
-        distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
-        must_recalculate = false;
-      }
+      // generate paths to target and render to pathimg field
+      path.clear();
+      path = generate_path_from(distance, xf, yf);
+      for (element& cell : path) { pathimg(cell.i,cell.j) = 1.0; }
+      path_max = 1.0;
+      must_recalculate = true;
     }
 
-    // generate paths to target and render to pathimg field
-    path.clear();
-    path = generate_path_from(distance, xf, yf);
-    for (element& cell : path) { pathimg(cell.i,cell.j) = 1.0; }
-    path_max = 1.0;
-    must_recalculate = true;
-  }
+    if (finish_east) {
+      std::cout << "Finding best path to eastern border" << std::endl;
 
+      if (recalculate_distance_field) {
+        // convert path to "easy" array
+        if (easy.rows() != elev.rows() and easy.cols() != elev.cols()) {
+          easy.resize(nx,ny);
+          easy.setZero(nx,ny);
+        }
+        for (element& cell : path) { easy(cell.i,cell.j) = 1.0; }
+
+        // recalculate distances
+        if (must_recalculate) {
+          distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
+          must_recalculate = false;
+        }
+      }
+
+      // find the shortest distance on the eastern border
+      float mindist = std::numeric_limits<float>::max();
+      size_t minidx = -1;	// this is huge, size_t is unsigned
+      const size_t xf = nx-1;
+      for (size_t j=0; j<ny; ++j){
+        if (distance(xf,j) < mindist) {
+          mindist = distance(xf,j);
+          minidx = j;
+        }
+      }
+      const size_t yf = minidx;
+      std::cout << "  finish point is at " << xf << " " << (ny-yf-1) << std::endl;
+
+      // generate paths to target and render to pathimg field
+      path.clear();
+      path = generate_path_from(distance, xf, yf);
+      for (element& cell : path) { pathimg(cell.i,cell.j) = 1.0; }
+      path_max = 1.0;
+      must_recalculate = true;
+    }
+
+    if (finish_west) {
+      std::cout << "Finding best path to western border" << std::endl;
+
+      if (recalculate_distance_field) {
+        // convert path to "easy" array
+        if (easy.rows() != elev.rows() and easy.cols() != elev.cols()) {
+          easy.resize(nx,ny);
+          easy.setZero(nx,ny);
+        }
+        for (element& cell : path) { easy(cell.i,cell.j) = 1.0; }
+
+        // recalculate distances
+        if (must_recalculate) {
+          distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
+          must_recalculate = false;
+        }
+      }
+
+      // find the shortest distance on the western border
+      float mindist = std::numeric_limits<float>::max();
+      size_t minidx = -1;	// this is huge, size_t is unsigned
+      const size_t xf = 0;
+      for (size_t j=0; j<ny; ++j){
+        if (distance(xf,j) < mindist) {
+          mindist = distance(xf,j);
+          minidx = j;
+        }
+      }
+      const size_t yf = minidx;
+      std::cout << "  finish point is at " << xf << " " << (ny-yf-1) << std::endl;
+
+      // generate paths to target and render to pathimg field
+      path.clear();
+      path = generate_path_from(distance, xf, yf);
+      for (element& cell : path) { pathimg(cell.i,cell.j) = 1.0; }
+      path_max = 1.0;
+      must_recalculate = true;
+    }
+
+    // now, do the list of finish points
+    for (auto &finish : finishpts) {
+      std::cout << "Finding best path to point " << finish[0] << " " << finish[1] << std::endl;
+      const size_t xf = finish[0];
+      const size_t yf = ny - finish[1] - 1;
+
+      if (recalculate_distance_field) {
+        // convert path to "easy" array
+        if (easy.rows() != elev.rows() and easy.cols() != elev.cols()) {
+          easy.resize(nx,ny);
+          easy.setZero(nx,ny);
+        }
+        for (element& cell : path) { easy(cell.i,cell.j) = 1.0; }
+
+        // recalculate distances
+        if (must_recalculate) {
+          distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
+          must_recalculate = false;
+        }
+      }
+
+      // generate paths to target and render to pathimg field
+      path.clear();
+      path = generate_path_from(distance, xf, yf);
+      for (element& cell : path) { pathimg(cell.i,cell.j) = 1.0; }
+      path_max = 1.0;
+      must_recalculate = true;
+    }
+  } // end loop over all start points
+
+  //
+  // Wrapping up - write image output
+  //
 
   // write out the path matrix as a png
   if (not outpath.empty()) {
-    std::cout << "Writing path to " << outpath << std::endl;
+    std::cout << "\nWriting path to " << outpath << std::endl;
 
     float** data = allocate_2d_array_f((int)nx, (int)ny);
     for (size_t i=0; i<nx; ++i) for (size_t j=0; j<ny; ++j) data[i][j] = pathimg(i,j) / path_max;
@@ -642,7 +664,7 @@ int main(int argc, char const *argv[]) {
 
   // write out a combination of the dem and path matrix as a png
   if (not outmap.empty()) {
-    std::cout << "Writing map to " << outmap << std::endl;
+    std::cout << "\nWriting map to " << outmap << std::endl;
 
     float** data = allocate_2d_array_f((int)nx, (int)ny);
     for (size_t i=0; i<nx; ++i) for (size_t j=0; j<ny; ++j) data[i][j] = elev(i,j);
