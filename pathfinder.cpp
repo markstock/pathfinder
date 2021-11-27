@@ -242,6 +242,12 @@ int main(int argc, char const *argv[]) {
   float vscale = 0.1;
   app.add_option("-v,--vert", vscale, "vertical scale of dem w.r.t. horizontal scale");
 
+  // if demfile is "uniform" or "slope" or "cone" or "random", set the nx, ny here
+  size_t nx = 1000;
+  app.add_option("-x,--nx", nx, "number of pixels in horizontal direction (if no dem png is given)");
+  size_t ny = 1000;
+  app.add_option("-y,--ny", ny, "number of pixels in vertical direction (if no dem png is given)");
+
   // constant base cost - the basic cost of moving one pixel over flat ground
   float cbc = 0.01;
   app.add_option("-c,--cbc", cbc, "constant base cost, 0..1, high disregards slope, low weighs slope more heavily");
@@ -290,8 +296,6 @@ int main(int argc, char const *argv[]) {
   }
 
   // input data
-  // a floating point heightfield (16b grey)
-  size_t nx, ny;
 
   // recalculate between each destination (to account for new "easy" edges)?
   bool recalculate_distance_field = true;
@@ -313,16 +317,37 @@ int main(int argc, char const *argv[]) {
   //
 
   // load the data
-  nx = 100;
-  ny = 100;
 
   // array of the ground elevations (DTM)
   Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> elev;
 
-  if (demfile.empty()) {
-    // simply random
+  if (demfile.empty() or demfile == "uniform") {
+    std::cout << "Setting elevations to constant value (flat)\n";
+
     elev.resize(nx,ny);
-    elev.setRandom(nx,ny);	// sets to [-1..1]
+    elev.setZero();
+
+  } else if (demfile == "slope") {
+    std::cout << "Setting elevations to uniform slope\n";
+
+    elev.resize(nx,ny);
+    for (size_t i=0; i<nx; ++i) for (size_t j=0; j<ny; ++j) elev(i,j) = vscale * (float)i;
+
+  } else if (demfile == "cone") {
+    std::cout << "Setting elevations to smooth cone\n";
+
+    elev.resize(nx,ny);
+    const float ccdist = std::sqrt(0.5);
+    for (size_t i=0; i<nx; ++i) for (size_t j=0; j<ny; ++j) {
+      elev(i,j) = vscale * (float)nx * (1.0 - std::sqrt(std::pow(0.5-i/(float)(nx-1), 2) + std::pow(0.5-j/(float)(ny-1), 2))/ccdist);
+      if (i%10==0 and j%10==0) std::cout << i << " " << j << " is " << elev(i,j) << "\n";
+    }
+
+  } else if (demfile == "random") {
+    std::cout << "Setting elevations to random noise\n";
+
+    elev.resize(nx,ny);
+    elev.setRandom();	// sets to [-1..1]
     elev = elev.array().pow(2);		// change to all positive
 
   } else {
@@ -369,7 +394,7 @@ int main(int argc, char const *argv[]) {
     hard.resize(nx,ny);
     float** data = allocate_2d_array_f((int)nx, (int)ny);
 
-    // read the first channel into the elevation array, scaled as 0..vscale
+    // read the first channel into a temp array, scaled as 0..vscale
     (void) read_png (hardfile.c_str(), (int)nx, (int)ny, 0, 0, 0.0, 0,
                      data, 0.0, 1.0, nullptr, 0.0, 1.0, nullptr, 0.0, 1.0);
 
@@ -395,7 +420,7 @@ int main(int argc, char const *argv[]) {
     easy.resize(nx,ny);
     float** data = allocate_2d_array_f((int)nx, (int)ny);
 
-    // read the first channel into the elevation array, scaled as 0..vscale
+    // read the first channel into a temp array, scaled as 0..vscale
     (void) read_png (easyfile.c_str(), (int)nx, (int)ny, 0, 0, 0.0, 0,
                      data, 0.0, 1.0, nullptr, 0.0, 1.0, nullptr, 0.0, 1.0);
 
@@ -409,6 +434,18 @@ int main(int argc, char const *argv[]) {
   pathimg.resize(nx,ny);
   pathimg.setZero(nx,ny);
   float path_max = 0.0;
+
+  // testing - add a few source and target points
+  if (false) {
+  startpts.emplace_back(std::array<int32_t,2>({100,100}));
+  startpts.emplace_back(std::array<int32_t,2>({100,(int32_t)ny-100}));
+  startpts.emplace_back(std::array<int32_t,2>({(int32_t)nx-100,100}));
+  startpts.emplace_back(std::array<int32_t,2>({(int32_t)nx-100,(int32_t)ny-100}));
+  finishpts.emplace_back(std::array<int32_t,2>({100,100}));
+  finishpts.emplace_back(std::array<int32_t,2>({100,(int32_t)ny-100}));
+  finishpts.emplace_back(std::array<int32_t,2>({(int32_t)nx-100,100}));
+  finishpts.emplace_back(std::array<int32_t,2>({(int32_t)nx-100,(int32_t)ny-100}));
+  }
 
   //
   // Process each start-finish point pair
