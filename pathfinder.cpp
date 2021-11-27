@@ -15,6 +15,7 @@
 #include <cmath>
 #include <queue>
 #include <iostream>
+#include <random>
 
 
 // a commonly-used data item
@@ -437,14 +438,26 @@ int main(int argc, char const *argv[]) {
 
   // testing - add a few source and target points
   if (false) {
-  startpts.emplace_back(std::array<int32_t,2>({100,100}));
-  startpts.emplace_back(std::array<int32_t,2>({100,(int32_t)ny-100}));
-  startpts.emplace_back(std::array<int32_t,2>({(int32_t)nx-100,100}));
-  startpts.emplace_back(std::array<int32_t,2>({(int32_t)nx-100,(int32_t)ny-100}));
-  finishpts.emplace_back(std::array<int32_t,2>({100,100}));
-  finishpts.emplace_back(std::array<int32_t,2>({100,(int32_t)ny-100}));
-  finishpts.emplace_back(std::array<int32_t,2>({(int32_t)nx-100,100}));
-  finishpts.emplace_back(std::array<int32_t,2>({(int32_t)nx-100,(int32_t)ny-100}));
+    startpts.emplace_back(std::array<int32_t,2>({100,100}));
+    startpts.emplace_back(std::array<int32_t,2>({100,(int32_t)ny-100}));
+    startpts.emplace_back(std::array<int32_t,2>({(int32_t)nx-100,100}));
+    startpts.emplace_back(std::array<int32_t,2>({(int32_t)nx-100,(int32_t)ny-100}));
+    finishpts.emplace_back(std::array<int32_t,2>({100,100}));
+    finishpts.emplace_back(std::array<int32_t,2>({100,(int32_t)ny-100}));
+    finishpts.emplace_back(std::array<int32_t,2>({(int32_t)nx-100,100}));
+    finishpts.emplace_back(std::array<int32_t,2>({(int32_t)nx-100,(int32_t)ny-100}));
+  }
+  if (false) {
+    std::random_device dev;
+    std::mt19937 rng(dev());
+    std::uniform_int_distribution<std::mt19937::result_type> xrand(0,nx-1);
+    std::uniform_int_distribution<std::mt19937::result_type> yrand(0,ny-1);
+    for (size_t i=0; i<15; ++i) {
+      const int32_t px = xrand(rng);
+      const int32_t py = yrand(rng);
+      startpts.emplace_back(std::array<int32_t,2>({px,py}));
+      finishpts.emplace_back(std::array<int32_t,2>({px,py}));
+    }
   }
 
   //
