@@ -32,9 +32,7 @@ Output should be either to raster images to use as layers, or to a vectorized fo
 Similar methods could be used to compute the range or effective property boundaries between a number of settlers on the same raster grid: each settler grows their land holdings at varying rates until running up against another. That may become another program.
 
 ## To Do
-Store an internal list of finishing points, and compute paths to each of them from the source point.
-
-Allow existing computed paths to be added to the "easy" array so that subsequent paths will preferentially use them.
+Implement command line arg to generate paths between N randomly-placed points, either pure random or metropolis random
 
 Add command line args for the relative values of the cost functions: the minimum cost for terrain-only, the maximum cost addition for hard, the cost multiple for easy, etc.
 
