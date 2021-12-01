@@ -253,6 +253,10 @@ int main(int argc, char const *argv[]) {
   float cbc = 0.01;
   app.add_option("-c,--cbc", cbc, "constant base cost, 0..1, high disregards slope, low weighs slope more heavily");
 
+  // random seed, if not set
+  uint32_t rseed = 12345;
+  app.add_option("--seed", rseed, "random seed, program will use noise generator if this is not set");
+
   // optional png images for hard or easy cells/traversals
   std::string hardfile;
   app.add_option("--hard", hardfile, "png with white areas harder to access");
@@ -347,6 +351,14 @@ int main(int argc, char const *argv[]) {
   } else if (demfile == "random") {
     std::cout << "Setting elevations to random noise\n";
 
+    // since Eigen uses rand() internally, we can set the seed here
+    if (app.count("--seed") > 0) {
+      // a random seed was given on the command line
+      srand((unsigned int) rseed);
+    } else {
+      //seed based on a low-resolution timer
+      srand((unsigned int) time(0));
+    }
     elev.resize(nx,ny);
     elev.setRandom();	// sets to [-1..1]
     elev = elev.array().pow(2);		// change to all positive
@@ -448,17 +460,26 @@ int main(int argc, char const *argv[]) {
     finishpts.emplace_back(std::array<int32_t,2>({(int32_t)nx-100,(int32_t)ny-100}));
   }
   if (false) {
+    // use random device
     std::random_device dev;
     std::mt19937 rng(dev());
+    // or use seed, if given
+    if (app.count("--seed") > 0) {
+      rng.seed(rseed);
+    }
     std::uniform_int_distribution<std::mt19937::result_type> xrand(0,nx-1);
     std::uniform_int_distribution<std::mt19937::result_type> yrand(0,ny-1);
-    for (size_t i=0; i<15; ++i) {
+    const size_t nrandpts = 10;
+    for (size_t i=0; i<nrandpts; ++i) {
       const int32_t px = xrand(rng);
       const int32_t py = yrand(rng);
+      std::cout << "  placing random start/end point at " << px << " " << py << "\n";
       startpts.emplace_back(std::array<int32_t,2>({px,py}));
       finishpts.emplace_back(std::array<int32_t,2>({px,py}));
     }
   }
+
+  assert(startpts.size() > 0 && "No start points");
 
   //
   // Process each start-finish point pair
@@ -519,6 +540,7 @@ int main(int argc, char const *argv[]) {
 
         // recalculate distances
         if (must_recalculate) {
+          std::cout << "  easing " << path.size() << " path segments\n";
           distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
           must_recalculate = false;
         }
@@ -561,6 +583,7 @@ int main(int argc, char const *argv[]) {
 
         // recalculate distances
         if (must_recalculate) {
+          std::cout << "  easing " << path.size() << " path segments\n";
           distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
           must_recalculate = false;
         }
@@ -600,6 +623,7 @@ int main(int argc, char const *argv[]) {
 
         // recalculate distances
         if (must_recalculate) {
+          std::cout << "  easing " << path.size() << " path segments\n";
           distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
           must_recalculate = false;
         }
@@ -639,6 +663,7 @@ int main(int argc, char const *argv[]) {
 
         // recalculate distances
         if (must_recalculate) {
+          std::cout << "  easing " << path.size() << " path segments\n";
           distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
           must_recalculate = false;
         }
@@ -667,6 +692,9 @@ int main(int argc, char const *argv[]) {
 
     // now, do the list of finish points
     for (auto &finish : finishpts) {
+
+      if (start[0]==finish[0] and start[1]==finish[1]) continue;
+
       std::cout << "Finding best path to point " << finish[0] << " " << finish[1] << std::endl;
       const size_t xf = finish[0];
       const size_t yf = ny - finish[1] - 1;
@@ -681,6 +709,7 @@ int main(int argc, char const *argv[]) {
 
         // recalculate distances
         if (must_recalculate) {
+          std::cout << "  easing " << path.size() << " path segments\n";
           distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
           must_recalculate = false;
         }
