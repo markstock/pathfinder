@@ -11,10 +11,14 @@
 
 #include <cassert>
 #include <vector>
+#include <array>
 #include <limits>
 #include <cmath>
 #include <queue>
 #include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
 #include <random>
 
 
@@ -264,14 +268,14 @@ int main(int argc, char const *argv[]) {
   app.add_option("-e,--easy", easyfile, "png with white areas easier to access");
 
   // single start point
-  std::array<int32_t,2> startp{-1,-1};
+  std::array<int32_t,2> startp({-1,-1});
   app.add_option("-s,--start", startp, "start pixel, from top left");
   // file with multiple start points
   std::string sfile;
   app.add_option("--sf", sfile, "file from which to read start pixel positions");
 
   // single end point (optional)
-  std::array<int32_t,2> finishp{-1,-1};
+  std::array<int32_t,2> finishp({-1,-1});
   app.add_option("-f,--finish", finishp, "finish pixel, from top left");
   bool finish_south = false;
   app.add_flag("--fs", finish_south, "find optimal finish pixel on the south edge");
@@ -307,14 +311,60 @@ int main(int argc, char const *argv[]) {
 
   // make list of start points
   std::vector<std::array<int32_t,2>> startpts;
+
+  // add from command line
   if (not (startp[0] == -1 and startp[1] == -1)) {
     startpts.emplace_back(std::array<int32_t,2>({startp[0],startp[1]}));
   }
 
+  // add from file
+  {
+    std::cout << "Reading start points from " << sfile << std::endl;
+    std::string line;
+    std::ifstream infile(sfile);
+    int32_t value;
+    std::array<int32_t,2> pt;
+
+    while (std::getline(infile, line)) {
+      std::istringstream iss(line);
+      size_t numvals = 0;
+      while (iss >> value and numvals < 2) {
+        pt[numvals++] = value;
+      }
+      if (numvals == 2) {
+        std::cout << "  added start point " << pt[0] << " " << pt[1] << std::endl;
+        startpts.emplace_back(std::array<int32_t,2>({pt[0],pt[1]}));
+      }
+    }
+  }
+
   // make list of finish points
   std::vector<std::array<int32_t,2>> finishpts;
+
+  // add from command line
   if (not (finishp[0] == -1 and finishp[1] == -1)) {
     finishpts.emplace_back(std::array<int32_t,2>({finishp[0],finishp[1]}));
+  }
+
+  // add from file
+  {
+    std::cout << "Reading finish points from " << ffile << std::endl;
+    std::string line;
+    std::ifstream infile(ffile);
+    int32_t value;
+    std::array<int32_t,2> pt;
+
+    while (std::getline(infile, line)) {
+      std::istringstream iss(line);
+      size_t numvals = 0;
+      while (iss >> value and numvals < 2) {
+        pt[numvals++] = value;
+      }
+      if (numvals == 2) {
+        std::cout << "  added finish point " << pt[0] << " " << pt[1] << std::endl;
+        finishpts.emplace_back(std::array<int32_t,2>({pt[0],pt[1]}));
+      }
+    }
   }
 
   //
