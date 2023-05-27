@@ -5,8 +5,9 @@
 
 my $dem = $ARGV[0];
 my $vscale = $ARGV[1];
-my $easyfile = $ARGV[2];
-my $num = $ARGV[3];
+my $num = $ARGV[2];
+#my $easyfile = $ARGV[3];
+my $easyfile = "allpaths.png";
 
 # find the dimensions of the DEM
 my $outline = `pngtopam ${dem} | pamfile -size`;
@@ -15,7 +16,11 @@ my $xsize = $sizes[0];
 my $ysize = $sizes[1];
 print "Input dem (${dem}) is ${xsize} x ${ysize}\n";
 
-my $basecommand = "./pathfinder -d ${dem} -v ${vscale} -c 0.01";
+# generate an easy file?
+$command = "convert -size ${xsize}x${ysize} canvas:black ${easyfile}";
+print "${command}\n"; system $command;
+
+my $basecommand = "./pathfinder -d ${dem} -v ${vscale} -c 0.001";
 
 # loop over all the settlers
 for (my $i=0; $i<$num; $i=$i+1) {
@@ -25,7 +30,9 @@ for (my $i=0; $i<$num; $i=$i+1) {
   # do we have an existing "easy" file?
 
   # travel North and find optimal dest
-  my $command = $basecommand." -e ${easyfile} -s ${sx} ${sy} --fn --fs --fe --fw --op newpaths.png --om allmap.png";
+  $command = $basecommand;
+  if ($i > 0) { $command .= " -e ${easyfile}"; }
+  $command .= " -s ${sx} ${sy} --fn --fs --fe --fw --op newpaths.png --om allmap.png";
   print "${command}\n"; system $command;
 
   # finally merge the easy file and the new one
