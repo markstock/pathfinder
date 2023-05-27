@@ -318,7 +318,7 @@ int main(int argc, char const *argv[]) {
   }
 
   // add from file
-  {
+  if (not sfile.empty()) {
     std::cout << "Reading start points from " << sfile << std::endl;
     std::string line;
     std::ifstream infile(sfile);
@@ -347,7 +347,7 @@ int main(int argc, char const *argv[]) {
   }
 
   // add from file
-  {
+  if (not ffile.empty()) {
     std::cout << "Reading finish points from " << ffile << std::endl;
     std::string line;
     std::ifstream infile(ffile);
