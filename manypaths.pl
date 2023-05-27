@@ -44,4 +44,4 @@ for (my $i=0; $i<$num; $i=$i+1) {
   print "${command}\n"; system $command;
   $easyfile = "allpaths.png";
 }
-unlink ".tempold.pam", ".tempnew.pam";
+unlink ".tempold.pam", ".tempnew.pam", "newpaths.png";
