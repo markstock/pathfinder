@@ -40,5 +40,11 @@ Write out paths in .seg format for extra processing; make sure to include z comp
 
 Allow method to optimally place a new point such that its cost to travel to a list of target points is minimized. Where roads exist, this might always choose a spot on a road or even an intersection of roads. That's how towns form, I suppose.
 
+Consider the path-perpendicular slope in the cost. Path-tangential is slope, and we determine the cost of that properly; but path-perpendicular slope is also important. It's probably called "exposure" in climbing context. It's very hard to walk along steep slopes, even with no forward elevation gain/loss, unless there is a prepared trail carved into the slope.
+
+This makes me think that there should be a parameter defining the width of a path compared to the size of a pixel. If a path is 0.01 to 0.1 of a pixel, then you can probably fit a switchback or two within a pixel; but not if closer to 1.0; and what would one even do if the parameter were > 2? That's probably when perpendicular slope makes a difference.
+
+It would be cool to see a separate image or data plot for each path of elevation vs. distance. Maybe to `.path001.dat`?
+
 ## Credits
 This code was written by Mark Stock <markjstock@gmail.com> in 2021.
