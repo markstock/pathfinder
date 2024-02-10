@@ -46,5 +46,7 @@ This makes me think that there should be a parameter defining the width of a pat
 
 It would be cool to see a separate image or data plot for each path of elevation vs. distance. Maybe to `.path001.dat`?
 
+Note that ASTER has a global water bodies database at https://search.earthdata.nasa.gov/search/granules?p=C1575734433-LPDAAC_ECS&pg[0][v]=f&tl=1686674313.39!3!!
+
 ## Credits
 This code was written by Mark Stock <markjstock@gmail.com> in 2021.
