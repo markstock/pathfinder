@@ -50,3 +50,16 @@ Note that ASTER has a global water bodies database at https://search.earthdata.n
 
 ## Credits
 This code was written by Mark Stock <markjstock@gmail.com> in 2021.
+
+## Citing Pathfinder
+
+I don't get paid for writing or maintaining this, so if you find this tool useful or mention it in your writing, please please cite it by using the following BibTeX entry.
+
+```
+@Misc{Pathfinder2021,
+  author =       {Mark J.~Stock},
+  title =        {Pathfinder:  A C++ program to find optimal paths through heightfields},
+  howpublished = {\url{https://github.com/markstock/pathfinder}},
+  year =         {2021}
+}
+```
