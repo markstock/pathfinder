@@ -49,16 +49,30 @@ struct element {
 
 // several cost functions
 
+// all terrain costs equal, regardless of slope
 float cost_uniform (const float _scale, const float _zthis, const float _zneib, const float _xydist) {
   return _xydist * _scale;
 }
 
+// "bucket" of cost centered at slope=0
 float cost_symmetric (const float _scale, const float _zthis, const float _zneib, const float _xydist) {
   return _xydist * (_scale + std::pow((_zneib-_zthis)/_xydist, 2));
 }
 
+// bucket of low-cost travel at slope=-0.04
 float cost_asymmetric (const float _scale, const float _zthis, const float _zneib, const float _xydist) {
   return _xydist * (_scale + std::pow(0.04 + (_zneib-_zthis)/_xydist, 2));
+}
+
+// https://en.wikipedia.org/wiki/Naismith%27s_rule
+// extended to no extra cost for downhill
+float cost_naismith (const float _scale, const float _zthis, const float _zneib, const float _xydist) {
+  return _xydist * _scale * (1.f + 7.92f * std::max(0.f, (_zneib-_zthis)/_xydist));
+}
+
+// https://en.wikipedia.org/wiki/Tobler%27s_hiking_function
+float cost_tobler (const float _scale, const float _zthis, const float _zneib, const float _xydist) {
+  return _xydist * _scale * std::exp(3.5f * std::abs(0.05f + (_zneib-_zthis)/_xydist));
 }
 
 
