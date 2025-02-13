@@ -48,6 +48,12 @@ It would be cool to see a separate image or data plot for each path of elevation
 
 Note that ASTER has a global water bodies database at https://search.earthdata.nasa.gov/search/granules?p=C1575734433-LPDAAC_ECS&pg[0][v]=f&tl=1686674313.39!3!!
 
+## To Do
+* Make the cost function a pointer to pass into the calculation subroutins
+* Create command-line args for common cost functions, symmetric and asymmetric
+* Find a DEM of the CONUS at a reasonable resolution, also create an impassable (lakes and oceans) map, run an erosion program to find the streamflow, and combine those to compute potential Oregon Trail routes.
+* Add images to the README
+
 ## Credits
 This code was written by Mark Stock <markjstock@gmail.com> in 2021.
 
