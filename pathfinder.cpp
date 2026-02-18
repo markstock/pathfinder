@@ -1,7 +1,7 @@
 //
 // pathfinder - find paths through terrain
 //
-// (c)2021 Mark J. Stock <markjstock@gmail.com>
+// (c)2021,4-6 Mark J. Stock <markjstock@gmail.com>
 //
 
 #include "inout.h"
@@ -20,6 +20,7 @@
 #include <sstream>
 #include <string>
 #include <random>
+#include <algorithm>	// for reverse
 
 
 // a commonly-used data item
@@ -305,11 +306,13 @@ int main(int argc, char const *argv[]) {
 
   // write out certain arrays
   std::string outdist;
-  app.add_option("--od", outdist, "write distance matrix to png");
+  app.add_option("--od", outdist, "write distance (cost) image to png");
   std::string outpath;
-  app.add_option("--op", outpath, "write path matrix to png");
+  app.add_option("--op", outpath, "write path image to png");
   std::string outmap;
-  app.add_option("--om", outmap, "write dem and path to a png");
+  app.add_option("--om", outmap, "write combined dem and path to a png");
+  std::string outprof;
+  app.add_option("--oe", outprof, "write path elevation-vs-distance to a png");
 
   // finally parse
   try {
@@ -545,6 +548,9 @@ int main(int argc, char const *argv[]) {
 
   assert(startpts.size() > 0 && "No start points");
 
+  // create a re-usable path list
+  std::vector<element> path;
+
   //
   // Process each start-finish point pair
   //
@@ -586,9 +592,6 @@ int main(int argc, char const *argv[]) {
     }
 
     // now generate paths based on desired end points
-
-    // and re-usable path list
-    std::vector<element> path;
 
     // add all paths defined
     if (finish_north) {
@@ -826,6 +829,72 @@ int main(int argc, char const *argv[]) {
 
     (void) write_png (outmap.c_str(), (int)nx, (int)ny, FALSE, TRUE,
                       data, 0.0, vscale*(float)nx, nullptr, 0.0, 1.0, nullptr, 0.0, 1.0);
+
+    free_2d_array_f(data);
+  }
+
+  // write out the path as a distance-vs-height figure (and dist-vs-slope?)
+  if (not outprof.empty()) {
+    std::cout << "\nWriting path profile/elevation to " << outprof << std::endl;
+
+    // REVERSE THE ORDER
+    std::reverse(path.begin(), path.end());
+
+    // loop through path and find distance and elevation
+    // note that "cell.dist" is the *cost* to get to this cell, not the horizontal distance
+    float minelev = 9999.9f;
+    float maxelev = -9999.9f;
+    float dist = 0.f;
+    int32_t lasti = path[0].i;
+    int32_t lastj = path[0].j;
+    for (element& cell : path) {
+      const float thiselev = elev(cell.i,cell.j);
+      if (thiselev > maxelev) maxelev = thiselev;
+      if (thiselev < minelev) minelev = thiselev;
+      dist += std::sqrt(std::pow((float)(cell.i-lasti),2)+std::pow((float)(cell.j-lastj),2));
+      lasti = cell.i;
+      lastj = cell.j;
+    }
+    const float elevrange = maxelev-minelev;
+    std::cout << "  elevation range is " << elevrange << "\n";
+    std::cout << "  path distance is " << dist << "\n";
+
+    // set image size
+    const size_t pix = 1 + dist + 0.5f;
+    const size_t piy = 20 + elevrange+0.5f;
+
+    // allocate the array and zero it
+    float** data = allocate_2d_array_f((int)pix, (int)piy);
+    std::cout << "  allocated array " << pix << " x " << piy << "\n";
+    for (size_t i=0; i<pix; ++i) for (size_t j=0; j<piy; ++j) data[i][j] = 1.f;
+
+    // loop through path again and draw pixels
+    dist = 0.f;
+    lasti = path[0].i;
+    lastj = path[0].j;
+    size_t lastcol = 0;
+    for (element& cell : path) {
+      dist += std::sqrt(std::pow((float)(cell.i-lasti),2)+std::pow((float)(cell.j-lastj),2));
+      lasti = cell.i;
+      lastj = cell.j;
+      const size_t thiscol = dist;
+      const float colhgt = 10.f + elev(cell.i,cell.j) - minelev;
+      const size_t jcolhgt = colhgt;
+      const float topfrac = colhgt - (float)jcolhgt;
+      //std::cout << "  writing elev " << (elev(cell.i,cell.j)-minelev) << " at column " << (int)dist << "\n";
+      // finally write the data
+      for (size_t j=0; j<jcolhgt; ++j) data[thiscol][j] = 0.f;
+      data[thiscol][jcolhgt] = 1.f - topfrac;
+      // and do it again if we skipped a column
+      if (thiscol - lastcol > 1) {
+        for (size_t j=0; j<jcolhgt; ++j) data[thiscol-1][j] = 0.f;
+        data[thiscol-1][jcolhgt] = 1.f - topfrac;
+      }
+      lastcol = thiscol;
+    }
+
+    (void) write_png (outprof.c_str(), (int)pix, (int)piy, FALSE, TRUE,
+                      data, 0.f, 1.f, nullptr, 0.f, 1.f, nullptr, 0.f, 1.f);
 
     free_2d_array_f(data);
   }

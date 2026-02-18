@@ -28,23 +28,18 @@ int write_png (const char *outfile, const int nx, const int ny,
    png_uint_32 height,width;
    png_structp png_ptr;
    png_infop info_ptr;
-   static png_byte **img;
-   static int is_allocated = FALSE;
-   static png_byte **imgrgb;
-   static int rgb_is_allocated = FALSE;
+   png_byte **img;
+   png_byte **imgrgb;
 
    // set specific bit depth
    if (high_depth) bit_depth = 16;
    else bit_depth = 8;
 
    // allocate the space for the special array
-   if (!is_allocated && !three_channel) {
-      img = allocate_2d_array_pb(nx,ny,bit_depth);
-      is_allocated = TRUE;
-   }
-   if (!rgb_is_allocated && three_channel) {
+   if (three_channel) {
       imgrgb = allocate_2d_rgb_array_pb(nx,ny,bit_depth);
-      rgb_is_allocated = TRUE;
+   } else {
+      img = allocate_2d_array_pb(nx,ny,bit_depth);
    }
 
    // set the sizes in png-understandable format
@@ -282,8 +277,11 @@ int write_png (const char *outfile, const int nx, const int ny,
    fclose(fp);
 
    // free the data array
-   //free_2d_array_pb(img);
-   //free_2d_array_pb(imgrgb);
+   if (three_channel) {
+      free_2d_array_pb(imgrgb);
+   } else {
+      free_2d_array_pb(img);
+   }
 
    return(0);
 }

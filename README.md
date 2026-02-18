@@ -10,9 +10,9 @@ Compile and run with:
     ./pathfinder -d SpainOneArcsecond.png -v 0.1 -s 0 1500 -f 2999 1500
     ./pathfinder -d ScotlandSkye.png -v 0.018 -s 1875 2868 -f 558 1578 --hard ScotlandSkyeImpassable.png
 
-Use `-d` to set the DEM (digital elevation model) and `-v` to set the slopes - the vertical distance between pure black and white divided by the horizontal (left-to-right) length of the represented area. For example, if your png were 1000 by 500 pixels and each pixel is 100 meters, then the width of your image is 100,000 meters. If black is -100m and white is 4900m, then the vertical range is 5000 meters. The coefficient for this case would be 0.05.
+Use `-d` to set the DEM (digital elevation model) and `-v` to set the slopes - the vertical distance between pure black and white divided by the horizontal (left-to-right) length of the represented area. For example, if your png were 1000 by 500 pixels and each pixel is 100 meters, then the width of your image is 100,000 meters. If black is -100m and white is 4900m, then the vertical range is 5000 meters. The coefficient for this case would be 0.05 (5000 / 100,000).
 
-`-s` and `-f` set start and finish points, measured from top left (x then y). Finally, to include a map of impassable (or extra-difficult) terrain or water, use `-hard`.
+The `-s` and `-f` options set start and finish points, measured from top left (x then y) as they would appear in an image editing program. Finally, to include a map of impassable (or extra-difficult) terrain or water, use `-hard`.
 
 ## Goal
 In order to create an organic civilization/city simulation engine which starts from the beginnings of habitation, we need a tool to find paths between two points on a scalar, raster field of passability. The first step being to simulate paths taken through a given area: from one boundary cell to another. When settlers arrive, paths between their camps and those boundary connections are then calculated. And when there are multiple settlers, paths between camps as well.
@@ -44,7 +44,7 @@ Consider the path-perpendicular slope in the cost. Path-tangential is slope, and
 
 This makes me think that there should be a parameter defining the width of a path compared to the size of a pixel. If a path is 0.01 to 0.1 of a pixel, then you can probably fit a switchback or two within a pixel; but not if closer to 1.0; and what would one even do if the parameter were > 2? That's probably when perpendicular slope makes a difference.
 
-It would be cool to see a separate image or data plot for each path of elevation vs. distance. Maybe to `.path001.dat`?
+You are on to something here - there's an essential disconnect between the traditional hiking cost formulas and the reality of traversing a dem at 1 meter or better resolution. I think computational pathfinding methods are/were designed for lower-resolution DEMs. Paths that I find through desert terrain regularly accept a 2-4 meter hop over 0.5m horizontal distance - not easy or even possible. The same variation over a 10m pixel would imply a tight set of switchbacks. Additionally, to penalize such hops for high-resolution DEMs, this algorithm then assumes very meandering paths over less sloped terrain, which is also unrealistic.
 
 Note that ASTER has a global water bodies database at https://search.earthdata.nasa.gov/search/granules?p=C1575734433-LPDAAC_ECS&pg[0][v]=f&tl=1686674313.39!3!!
 
@@ -53,9 +53,6 @@ Note that ASTER has a global water bodies database at https://search.earthdata.n
 * Create command-line args for common cost functions, symmetric and asymmetric
 * Find a DEM of the CONUS at a reasonable resolution, also create an impassable (lakes and oceans) map, run an erosion program to find the streamflow, and combine those to compute potential Oregon Trail routes.
 * Add images to the README
-
-## Credits
-This code was written by Mark Stock <markjstock@gmail.com> in 2021.
 
 ## Citing Pathfinder
 
