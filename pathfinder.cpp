@@ -281,7 +281,10 @@ int main(int argc, char const *argv[]) {
 
   // constant base cost - the basic cost of moving one pixel over flat ground
   float cbc = 0.01f;
-  app.add_option("-c,--cbc", cbc, "constant base cost, 0..1, high disregards slope, low weighs slope more heavily");
+  app.add_option("-c,--cbc", cbc, "base cost factor. "
+               "For symmetric/asymmetric: sets flat-ground friction (low = prefers flat, high = disregards slope). "
+               "For others: acts as a global scale.")
+   ->capture_default_str();
 
   // select the cost function
   std::string cost_name = "symmetric"; // default
