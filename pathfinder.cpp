@@ -12,6 +12,7 @@
 #include <cassert>
 #include <vector>
 #include <array>
+#include <map>
 #include <limits>
 #include <cmath>
 #include <queue>
@@ -50,6 +51,8 @@ struct element {
 
 // several cost functions
 
+typedef float (*cost_func_t)(const float, const float, const float, const float);
+
 // all terrain costs equal, regardless of slope
 float cost_uniform (const float _scale, const float _zthis, const float _zneib, const float _xydist) {
   return _xydist * _scale;
@@ -84,7 +87,8 @@ Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> generate_distance_field (
     Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>& hard,
     Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>& easy,
     const float basecost,
-    const size_t sx, const size_t sy) {
+    const size_t sx, const size_t sy,
+    cost_func_t cost_func) {
 
   const bool use_hard = (hard.rows() == elev.rows() and hard.cols() == elev.cols());
   const bool use_easy = (easy.rows() == elev.rows() and easy.cols() == elev.cols());
@@ -163,16 +167,14 @@ Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> generate_distance_field (
         //std::cout << "  testing cell " << i << " " << j << std::endl;
 
         // compute distance (cost) from current to target
-        //float dist = cost_uniform(basecost, thiselev, elev(i,j), euclid(current.i-i+1, current.j-j+1));
-        float dist = cost_symmetric(basecost, thiselev, elev(i,j), euclid(current.i-i+1, current.j-j+1));
-        //float dist = cost_asymmetric(basecost, thiselev, elev(i,j), euclid(current.i-i+1, current.j-j+1));
+        float dist = cost_func(basecost, thiselev, elev(i,j), euclid(current.i-i+1, current.j-j+1));
         //std::cout << "    unvisited, distance is " << euclid(current.i-i+1, current.j-j+1) << " " << dist << std::endl;
 
         // add a cost if hard(i,j) > 0.0 (like open water, a river, woods, etc.)
         if (use_hard) { dist += hard(i,j); }
 
         // subtract cost if easy(i,j) and easy(current.i, current.j) are > 0.0
-        if (use_easy) { dist *= 1.0 - 0.5*easy(i,j)*easy(current.i, current.j); }
+        if (use_easy) { dist *= 1.f - 0.5f*easy(i,j)*easy(current.i, current.j); }
 
         // reset distance on target
         const float testdist = distance(current.i, current.j) + dist;
@@ -251,6 +253,15 @@ int main(int argc, char const *argv[]) {
 
   std::cout << "pathfinder v1.0\n";
 
+  // map for the cost function selection
+  std::map<std::string, cost_func_t> cost_map{
+      {"uniform", cost_uniform},
+      {"symmetric", cost_symmetric},
+      {"asymmetric", cost_asymmetric},
+      {"naismith", cost_naismith},
+      {"tobler", cost_tobler}
+  };
+
   // process command line args
   CLI::App app{"Find optimal paths in DEMs with modifier fields"};
 
@@ -269,8 +280,14 @@ int main(int argc, char const *argv[]) {
   app.add_option("-y,--ny", ny, "number of pixels in vertical direction (if no dem png is given)");
 
   // constant base cost - the basic cost of moving one pixel over flat ground
-  float cbc = 0.01;
+  float cbc = 0.01f;
   app.add_option("-c,--cbc", cbc, "constant base cost, 0..1, high disregards slope, low weighs slope more heavily");
+
+  // select the cost function
+  std::string cost_name = "symmetric"; // default
+  app.add_option("--cost", cost_name, "cost function (uniform, symmetric, asymmetric, naismith, tobler)")
+     ->check(CLI::IsMember({"uniform", "symmetric", "asymmetric", "naismith", "tobler"}))
+     ->capture_default_str();
 
   // random seed, if not set
   uint32_t rseed = 12345;
@@ -320,6 +337,10 @@ int main(int argc, char const *argv[]) {
   } catch (const CLI::ParseError &e) {
     return app.exit(e);
   }
+
+  // resolve the cost function name here
+  cost_func_t selected_cost = cost_map[cost_name];
+  std::cout << "Using cost function: " << cost_name << std::endl;
 
   // input data
 
@@ -564,7 +585,7 @@ int main(int argc, char const *argv[]) {
 
     // one function to generate distances to a given point/cell
     std::cout << "\nGenerating distance field from " << start[0] << " " << start[1] << std::endl;
-    Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
+    Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> distance = generate_distance_field(elev, hard, easy, cbc, xs, ys, selected_cost);
     bool must_recalculate = false;
 
     // write out corners of matrix
@@ -608,7 +629,7 @@ int main(int argc, char const *argv[]) {
         // recalculate distances
         if (must_recalculate) {
           std::cout << "  easing " << path.size() << " path segments\n";
-          distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
+          distance = generate_distance_field(elev, hard, easy, cbc, xs, ys, selected_cost);
           must_recalculate = false;
         }
       }
@@ -651,7 +672,7 @@ int main(int argc, char const *argv[]) {
         // recalculate distances
         if (must_recalculate) {
           std::cout << "  easing " << path.size() << " path segments\n";
-          distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
+          distance = generate_distance_field(elev, hard, easy, cbc, xs, ys, selected_cost);
           must_recalculate = false;
         }
       }
@@ -691,7 +712,7 @@ int main(int argc, char const *argv[]) {
         // recalculate distances
         if (must_recalculate) {
           std::cout << "  easing " << path.size() << " path segments\n";
-          distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
+          distance = generate_distance_field(elev, hard, easy, cbc, xs, ys, selected_cost);
           must_recalculate = false;
         }
       }
@@ -731,7 +752,7 @@ int main(int argc, char const *argv[]) {
         // recalculate distances
         if (must_recalculate) {
           std::cout << "  easing " << path.size() << " path segments\n";
-          distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
+          distance = generate_distance_field(elev, hard, easy, cbc, xs, ys, selected_cost);
           must_recalculate = false;
         }
       }
@@ -777,7 +798,7 @@ int main(int argc, char const *argv[]) {
         // recalculate distances
         if (must_recalculate) {
           std::cout << "  easing " << path.size() << " path segments\n";
-          distance = generate_distance_field(elev, hard, easy, cbc, xs, ys);
+          distance = generate_distance_field(elev, hard, easy, cbc, xs, ys, selected_cost);
           must_recalculate = false;
         }
       }
